@@ -9,9 +9,7 @@ Contexto → Roteiro em 5 atos → Storyboard em peças de 10s → Cena renderiz
 *Você entrega o briefing; o resto do caminho até o arquivo pronto para publicar é executado —
 e cada etapa fica salva, editável e reproduzível.*
 
-### ▶ Demo: **https://professional-blue-4ptsgmrc.edgeone.dev/**
-
-[![demo] <video src="https://github.com/juliopessan/video-factory/raw/main/docs/media/demo-30s.mp4" poster="https://raw.githubusercontent.com/juliopessan/video-factory/main/docs/images/hero.jpg" controls playsinline width="820">
+### ▶ Demo: [![demo] <video src="https://github.com/juliopessan/video-factory/raw/main/docs/media/demo-30s.mp4" poster="https://raw.githubusercontent.com/juliopessan/video-factory/main/docs/images/hero.jpg" controls playsinline width="820">
   <a href="docs/media/demo-30s.mp4">Assistir ao filme de 30s (MP4)</a>
 </video>
 
