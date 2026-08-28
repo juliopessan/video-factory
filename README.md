@@ -15,6 +15,8 @@ e cada etapa fica salva, editável e reproduzível.*
 [![python](https://img.shields.io/badge/python-3.11+-3A3733?style=flat-square)](https://www.python.org/)
 [![providers](https://img.shields.io/badge/v%C3%ADdeo-Gemini%20Omni%20%C2%B7%20Sora--2-3A3733?style=flat-square)](#provedores-de-v%C3%ADdeo)
 
+[![Video Factory — a plataforma rodando localmente](docs/images/hero.jpg)](https://professional-blue-4ptsgmrc.edgeone.dev/)
+
 ---
 
 ## Ato 1 — O cenário atual
@@ -76,6 +78,8 @@ REFERENCE`, `CHARACTERS`, `FIRST FRAME`, `FORMAT MODE`, `ACTION AND CAMERA SEQUE
 `PHYSICS`, `AUDIO`). Editou o storyboard, "Recompilar prompts" reescreve — o prompt nunca vira um
 texto órfão.
 
+![Passo 3: cada peça com locução, direção de câmera e o prompt compilado ao lado](docs/images/storyboard.jpg)
+
 **O render conhece o modelo.** Com o Gemini Omni, cada peça estende a anterior pela mesma interação
 e o filme sai como uma tomada contínua. Com o Sora-2, que não estende cena, cada peça parte do
 último frame da anterior e a montagem acontece no fim. O pipeline lê a capacidade do provider e
@@ -99,6 +103,11 @@ passam por modelo nenhum: é FFmpeg local, com resultado igual toda vez que roda
   Roteiro, storyboard, montagem, legenda, marca e arquivos ficam em `./storage`.
 - **Trocar de modelo é configuração, não reescrita.** Gemini Omni e Sora-2 no Foundry atrás do
   mesmo contrato, e um provider mock que roda o fluxo inteiro offline, sem gastar cota.
+
+![Frame do filme final: tomada gerada pelo modelo, legenda do storyboard e lower third do Remotion](docs/images/master.jpg)
+
+*Um frame do master: a tomada veio do modelo, a legenda veio da locução do storyboard e o lower
+third foi renderizado com Remotion — os três compostos localmente.*
 
 ### Os números medidos
 
@@ -167,6 +176,13 @@ já é o filme inteiro.
 - **Formatos** 16:9, 9:16 e 1:1, em `crop` (preenche a tela) ou `pad` (preserva o quadro).
 - **Camada de marca** opcional, renderizada com Remotion e composta por cima.
 - **Montagem** automática quando as peças são independentes.
+
+![Passo 5: formatos, enquadramento, camada de marca e os exports prontos para baixar](docs/images/pos-producao.jpg)
+
+O enquadramento importa mais do que parece: à esquerda o recorte central, à direita o encaixe —
+o mesmo packshot, com e sem a marca cortada.
+
+![Recortar versus encaixar no mesmo packshot](docs/images/crop-vs-pad.jpg)
 
 ---
 
