@@ -181,7 +181,10 @@ function renderConsole() {
   if (warning) $("div", note).textContent = warning;
 
   $("#console-owner").textContent = `Provider ${state.config.provider}`;
-  $("#console-rule").textContent = `Cena contínua ≤ ${state.config.max_cumulative_seconds}s`;
+  $("#console-rule").textContent =
+    state.config.chaining === "keyframe"
+      ? "Peças independentes · emendadas no passo 5"
+      : `Cena contínua ≤ ${state.config.max_cumulative_seconds}s`;
 }
 
 function renderStory() {
@@ -344,6 +347,7 @@ async function loadExports() {
   const payload = await api.get(`/api/pipelines/${state.pipeline.id}/exports`);
   state.exports = payload.exports;
   state.postAvailable = payload.available;
+  state.overlays = payload.overlays || [];
 }
 
 function renderPost() {
@@ -360,6 +364,14 @@ function renderPost() {
     )
     .join("");
   $("#srt-link").href = `/api/pipelines/${pipeline.id}/subtitles`;
+
+  const overlaySelect = $("#opt-overlay");
+  const current = overlaySelect.value;
+  overlaySelect.innerHTML =
+    `<option value="">nenhuma</option>` +
+    (state.overlays || []).map((name) => `<option value="${name}">${name}</option>`).join("");
+  overlaySelect.value = current;
+  overlaySelect.disabled = !(state.overlays || []).length;
 
   const note = $("#post-note");
   if (!state.config.postproduction) {
@@ -387,6 +399,7 @@ function renderPost() {
                 <span class="pill">${item.params.fit === "pad" ? "encaixado" : "recortado"}</span>
                 ${item.params.burn_subtitles ? '<span class="pill">legendas</span>' : ""}
                 ${item.params.normalize_audio ? '<span class="pill">−14 LUFS</span>' : ""}
+                ${item.params.overlay ? `<span class="pill">${item.params.overlay}</span>` : ""}
               </div>
               ${item.error ? `<p class="note error">${escapeHtml(item.error)}</p>` : ""}
               <div class="actions">
@@ -412,6 +425,7 @@ async function startExport() {
     await api.post(`/api/pipelines/${state.pipeline.id}/exports`, {
       formats: state.formats,
       fit: $("#opt-fit").value,
+      overlay: $("#opt-overlay").value || null,
       burn_subtitles: $("#opt-subtitles").checked,
       normalize_audio: $("#opt-audio").checked,
       fade: $("#opt-fade").checked,
@@ -774,8 +788,9 @@ async function boot() {
   for (let s = segment_seconds; s <= max_cumulative_seconds; s += segment_seconds) durations.push(s);
   fillSelect($("#ctx-duration"), durations, 30);
 
+  const chaining = state.config.chaining === "keyframe" ? " · encadeia por keyframe" : "";
   $("#runtime-badge").textContent =
-    `${state.config.model} · provider ${state.config.provider}` +
+    `${state.config.provider === "azure" ? "sora-2 · foundry" : state.config.model} · provider ${state.config.provider}${chaining}` +
     (state.config.text_available ? ` · texto ${state.config.text_model}` : " · texto local");
   $("#foot-model").textContent = state.config.has_api_key ? "gemini api conectada" : "modo mock — sem api key";
 

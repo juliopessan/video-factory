@@ -1,18 +1,24 @@
-"""Provider offline: nao chama a API, produz um clipe sintetico (SVG animado).
+"""Provider offline: nao chama a API, produz um clipe sintetico.
 
 Serve para desenvolver a interface, testar o encadeamento de cenas e a fila de
-jobs sem gastar cota. O arquivo gerado nao e um MP4 - a UI o exibe como imagem
-animada e o marca como rascunho local.
+jobs sem gastar cota. Com FFmpeg instalado gera um MP4 de verdade (cor solida,
+o prompt escrito no quadro e um tom de audio), o que permite exercitar tambem a
+pos-producao e o encadeamento por keyframe. Sem FFmpeg, cai num SVG animado.
 """
 from __future__ import annotations
 
 import hashlib
 import html
+import os
+import shutil
+import subprocess
+import tempfile
 import textwrap
 import time
 import uuid
+from pathlib import Path
 
-from .base import VideoRequest, VideoResult
+from .base import DEFAULT_CAPABILITIES, VideoRequest, VideoResult
 
 PALETTES = [
     ("#0f172a", "#6366f1", "#22d3ee"),
@@ -68,15 +74,55 @@ def render_clip_svg(request: VideoRequest, clip_id: str) -> bytes:
 </svg>""".encode("utf-8")
 
 
+def render_clip_mp4(request: VideoRequest, clip_id: str, ffmpeg: str) -> bytes | None:
+    """Clipe real, para a pós-produção ter o que processar offline."""
+    bg, accent, _ = _palette(request.prompt + request.mode)
+    width, height = (1280, 720) if request.aspect_ratio == "16:9" else (720, 1280)
+    legend = " ".join(_wrap(request.prompt, width=28, max_lines=3))
+    legend = legend.replace("'", "").replace(":", " ").replace("\\", " ")
+    with tempfile.TemporaryDirectory() as tmp:
+        destination = Path(tmp) / "clip.mp4"
+        command = [
+            ffmpeg, "-y", "-loglevel", "error",
+            "-f", "lavfi", "-i", f"color=c={bg}:s={width}x{height}:d={request.duration_seconds}:r=25",
+            "-f", "lavfi", "-i", f"sine=frequency=320:duration={request.duration_seconds}",
+            "-vf",
+            f"drawbox=x=0:y=ih-12:w=iw*t/{request.duration_seconds}:h=12:color={accent}:t=fill,"
+            f"drawtext=text='{legend}':fontcolor=white:fontsize={height // 22}:x=(w-tw)/2:y=(h-th)/2,"
+            f"drawtext=text='{clip_id[:8]} %{{eif\\:t\\:d}}s':fontcolor=white@0.6:fontsize={height // 34}:x=40:y=h-80",
+            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-shortest", str(destination),
+        ]
+        result = subprocess.run(command, capture_output=True, text=True, timeout=600)
+        if result.returncode != 0 or not destination.exists():
+            return None
+        return destination.read_bytes()
+
+
 class MockProvider:
     name = "mock"
 
     def __init__(self, latency_seconds: float = 1.5) -> None:
         self.latency_seconds = latency_seconds
 
+    @staticmethod
+    def capabilities() -> dict:
+        capabilities = dict(DEFAULT_CAPABILITIES)
+        # permite exercitar o encadeamento por keyframe sem provider real
+        if os.environ.get("VF_MOCK_NO_EXTEND"):
+            capabilities["extend"] = False
+        return capabilities
+
     def generate(self, request: VideoRequest) -> VideoResult:
         time.sleep(self.latency_seconds)
         clip_id = uuid.uuid4().hex
+        ffmpeg = os.environ.get("VF_FFMPEG") or shutil.which("ffmpeg")
+        if ffmpeg:
+            data = render_clip_mp4(request, clip_id, ffmpeg)
+            if data:
+                return VideoResult(
+                    interaction_id=f"mock-{clip_id}", data=data, mime_type="video/mp4"
+                )
         return VideoResult(
             interaction_id=f"mock-{clip_id}",
             data=render_clip_svg(request, clip_id),

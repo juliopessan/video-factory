@@ -3,3 +3,5 @@ storage/
 __pycache__/
 *.pyc
 .venv/
+brand-overlays/node_modules/
+brand-overlays/out/

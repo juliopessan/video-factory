@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import db, pipeline as pipeline_mod, postproduction, studio, textgen
+from . import db, overlays, pipeline as pipeline_mod, postproduction, providers, studio, textgen
 from .config import (
     ASPECT_RATIOS,
     CLIP_SECONDS,
@@ -84,6 +84,7 @@ class PipelineRenderIn(BaseModel):
 class ExportIn(BaseModel):
     formats: list[str] = Field(default_factory=lambda: ["16:9"])
     fit: str = "crop"
+    overlay: str | None = None
     burn_subtitles: bool = True
     normalize_audio: bool = True
     fade: bool = True
@@ -125,6 +126,10 @@ def read_config() -> dict:
         "text_model": textgen.TEXT_MODEL,
         "text_available": textgen.available(),
         "postproduction": postproduction.available(),
+        "overlays": overlays.available(),
+        "providers": list(providers.PROVIDERS),
+        "capabilities": providers.capabilities(),
+        "chaining": pipeline_mod.chaining_strategy(),
         "export_formats": list(postproduction.FORMATS),
     }
 
@@ -234,6 +239,7 @@ def get_exports(pipeline_id: str) -> dict:
         "available": postproduction.available(),
         "formats": list(postproduction.FORMATS),
         "fits": list(postproduction.FITS),
+        "overlays": list(overlays.COMPOSITIONS) if overlays.available() else [],
         "exports": postproduction.list_exports(pipeline_id),
     }
 
@@ -248,6 +254,7 @@ def post_exports(pipeline_id: str, payload: ExportIn) -> list[dict]:
         payload.burn_subtitles,
         payload.normalize_audio,
         payload.fade,
+        payload.overlay,
     )
 
 

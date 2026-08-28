@@ -12,7 +12,8 @@ import json
 import math
 
 from . import db, studio, textgen
-from .config import EXTENSION_SECONDS, MAX_CUMULATIVE_SECONDS, RESOLUTIONS
+from .providers import capabilities as provider_capabilities
+from .config import EXTENSION_SECONDS, MAX_CUMULATIVE_SECONDS, RESOLUTIONS, settings
 
 SEGMENT_SECONDS = EXTENSION_SECONDS  # 10s por peca, como no modelo de referencia
 
@@ -286,6 +287,12 @@ def _first_mode(context: dict) -> str:
     return "image_to_video" if context["reference_asset_id"] else "text_to_video"
 
 
+def chaining_strategy(provider: str | None = None) -> str:
+    """Como as peças se ligam: `extend` (o modelo continua a interação) ou
+    `keyframe` (a peça seguinte parte do último frame da anterior)."""
+    return "extend" if provider_capabilities(provider).get("extend", True) else "keyframe"
+
+
 def _fallback_storyboard(context: dict, story: dict, count: int) -> dict:
     acts = story.get("acts") or []
     per_segment = max(1, math.ceil(len(acts) / count))
@@ -484,6 +491,20 @@ def render(pipeline_id: str, resolution: str | None = None) -> dict:
     return {"pipeline_id": pipeline_id, "status": "rendering", "segments": len(segments), "resolution": resolution}
 
 
+def _keyframe_media(project_id: str, generation_id: str) -> dict:
+    """Extrai o último frame da peça anterior e devolve a referência de mídia."""
+    from . import postproduction
+
+    previous = studio.get_generation(generation_id)
+    if not previous.get("asset_path"):
+        raise studio.StudioError("A peça anterior não deixou arquivo para extrair o keyframe.")
+    frame = postproduction.extract_last_frame(
+        previous["asset_path"], settings.uploads_dir / f"{generation_id}_last.png"
+    )
+    asset = studio.save_upload(project_id, frame.name, frame.read_bytes(), "image")
+    return {"asset_id": asset["id"], "kind": "image", "role": "first_frame"}
+
+
 def _run_render(pipeline_id: str, resolution: str) -> None:
     """Cada peca so entra na fila depois que a anterior termina: a extensao
     precisa do `interaction_id` do clipe anterior."""
@@ -498,18 +519,27 @@ def _run_render(pipeline_id: str, resolution: str) -> None:
         if context["reference_asset_id"]
         else []
     )
+    strategy = chaining_strategy()
     parent_id: str | None = None
     try:
         for index, segment in enumerate(segments):
+            step_media = media if index == 0 else []
+            mode = _first_mode(context) if index == 0 else "extend"
+            if index and strategy == "keyframe":
+                # provider que não estende cena: a continuidade vem do último
+                # frame da peça anterior, usado como primeiro frame da próxima
+                mode = "image_to_video"
+                step_media = [_keyframe_media(pipeline["project_id"], parent_id)]
+                parent_id = None
             generation = studio.create_generation(
                 project_id=pipeline["project_id"],
                 prompt=segment.get("prompt") or "",
-                mode="extend" if index else _first_mode(context),
+                mode=mode,
                 resolution=resolution,
                 aspect_ratio=context["aspect_ratio"],
                 duration_seconds=SEGMENT_SECONDS,
                 parent_id=parent_id,
-                media=[] if index else media,
+                media=step_media,
                 label=f"Peça {index + 1} · {segment.get('timecode', '')}",
                 enqueue=False,
             )
@@ -536,7 +566,11 @@ def _run_render(pipeline_id: str, resolution: str) -> None:
                 )
                 return
             parent_id = generation["id"]
-        db.update("pipelines", pipeline_id, {"status": "completed", "updated_at": db.now()})
+        db.update(
+            "pipelines",
+            pipeline_id,
+            {"status": "completed", "chaining": strategy, "updated_at": db.now()},
+        )
     except Exception as exc:
         db.update(
             "pipelines",

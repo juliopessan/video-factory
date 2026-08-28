@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "kinocut": {
+      "command": "kino",
+      "args": ["--mcp"],
+      "env": {
+        "MCP_VIDEO_WORKDIR": "./storage"
+      }
+    },
+    "remotion": {
+      "command": "npx",
+      "args": ["-y", "@remotion/mcp"],
+      "env": {
+        "REMOTION_PROJECT": "./brand-overlays"
+      }
+    }
+  }
+}

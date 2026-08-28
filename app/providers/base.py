@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
-Mode = Literal["text_to_video", "image_to_video", "interpolate", "reference_to_video", "extend", "upscale"]
+Mode = Literal["text_to_video", "image_to_video", "interpolate", "reference_to_video", "extend", "upscale", "edit"]
 
 # Mapeia o modo da UI para o `generation_config.video_config.task` da API.
 # `None` = nao enviar `video_config`: a API entao determina o modo pelo texto e
@@ -20,6 +20,7 @@ TASK_BY_MODE: dict[str, str | None] = {
     "reference_to_video": "reference_to_video",
     "extend": None,
     "upscale": None,
+    "edit": None,
 }
 
 
@@ -57,7 +58,22 @@ class ProviderError(RuntimeError):
     """Falha vinda do provider (rede, quota, conteudo recusado)."""
 
 
+# Capacidades padrão: o que um provider suporta muda o plano de render do
+# pipeline (quem não estende cena é encadeado por keyframe).
+DEFAULT_CAPABILITIES: dict = {
+    "extend": True,
+    "reference_video": True,
+    "upscale": True,
+    "resolutions": ["360p", "720p", "1080p", "4k"],
+    "aspect_ratios": ["16:9", "9:16"],
+    "durations": [],  # vazio = duração livre
+}
+
+
 class VideoProvider(Protocol):
     name: str
 
     def generate(self, request: VideoRequest) -> VideoResult: ...
+
+    @staticmethod
+    def capabilities() -> dict: ...

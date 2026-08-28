@@ -77,6 +77,12 @@ vf = cmd[cmd.index("-vf") + 1]
 af = cmd[cmd.index("-af") + 1]
 check("9:16 recorta pelo centro", vf.startswith("crop=ih*9/16:ih,scale=1080:1920"), vf)
 check("legenda entra no filtergraph", "subtitles='/tmp/x.srt'" in vf, vf)
+check("margem padrão da legenda", "MarginV=18" in vf, vf)
+alta = post.build_command(
+    source=Path("/in.mp4"), destination=Path("/out.mp4"), frame_filter="null",
+    subtitles=Path("/tmp/x.srt"), subtitle_margin=post.SUBTITLE_MARGIN_OVER_LAYER,
+)
+check("legenda sobe quando há lower third", "MarginV=40" in alta[alta.index("-vf") + 1])
 check("fade de saída usa a duração real", "fade=t=out:st=29.20:d=0.8" in vf, vf)
 check("áudio normalizado a -14 LUFS", "loudnorm=I=-14:TP=-1.5:LRA=11" in af, af)
 check("saída é h264/aac com faststart", {"libx264", "aac", "+faststart"} <= set(cmd), " ".join(cmd))
@@ -139,6 +145,33 @@ except Exception as exc:
 
 post._require_video({"mime_type": "video/mp4", "provider": "gemini"})
 check("clipe de vídeo passa", True)
+
+# ------------------------------------------- keyframe e montagem (com ffmpeg)
+
+if post.available():
+    from app.providers.base import VideoRequest
+    from app.providers.mock import MockProvider
+
+    tmp2 = Path(tempfile.mkdtemp(prefix="vf-chain-"))
+    pecas = []
+    for i in range(3):
+        clip = tmp2 / f"peca{i}.mp4"
+        clip.write_bytes(
+            MockProvider(0).generate(
+                VideoRequest(prompt=f"peça {i}", mode="text_to_video", duration_seconds=4)
+            ).data
+        )
+        pecas.append(clip)
+
+    frame = post.extract_last_frame(pecas[0], tmp2 / "last.png")
+    check("keyframe extraído do fim da peça", frame.exists() and frame.stat().st_size > 0)
+
+    emendado = post.concat(pecas, tmp2 / "filme.mp4")
+    duracao = post.probe_duration(emendado) or 0
+    check("montagem soma as peças", abs(duracao - 12) < 0.6, str(duracao))
+    check("montagem tem áudio e vídeo",
+          subprocess.run([post.FFPROBE, "-v", "error", "-show_entries", "stream=codec_type",
+                          "-of", "csv=p=0", str(emendado)], capture_output=True, text=True).stdout.count("\n") == 2)
 
 print("\n" + ("FALHAS: " + ", ".join(failures) if failures else "Tudo verde."))
 raise SystemExit(1 if failures else 0)

@@ -1,12 +1,15 @@
 {
-  "_comment": "Copie para .mcp.json na raiz do projeto (ou aponte seu cliente MCP para cá). Servidores de terceiros: leia o código antes de dar acesso à sua mídia.",
+  "_comment": "Cópia comentada do .mcp.json da raiz. Servidores de terceiros: leia o que executam antes de dar acesso à sua mídia.",
+
+  "_kinocut": "pip install kinocut (ou uvx --from kinocut kino --mcp). Precisa de FFmpeg no PATH. `kino doctor` mostra o que falta. 196 tools: trim, merge, subtitles, overlay, quality-check, repurpose.",
+  "_remotion": "npm install em brand-overlays/. O render precisa do chrome-headless-shell; se o Chrome do sistema não servir, aponte VF_REMOTION_BROWSER para um headless_shell.",
+
   "mcpServers": {
     "kinocut": {
-      "command": "uvx",
-      "args": ["kinocut-mcp"],
+      "command": "kino",
+      "args": ["--mcp"],
       "env": {
-        "KINOCUT_WORKDIR": "./storage",
-        "KINOCUT_FFMPEG": "ffmpeg"
+        "MCP_VIDEO_WORKDIR": "./storage"
       }
     },
     "remotion": {

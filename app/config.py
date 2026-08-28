@@ -39,6 +39,8 @@ COST_UNITS_PER_SECOND = {"360p": 1.0, "720p": 3.0, "1080p": 4.5, "4k": 6.0}
 @dataclass(frozen=True)
 class Settings:
     api_key: str
+    azure_endpoint: str
+    azure_api_key: str
     provider: str
     model: str
     storage_dir: Path
@@ -58,10 +60,17 @@ class Settings:
         return self.storage_dir / "factory.db"
 
     @property
+    def has_azure(self) -> bool:
+        return bool(self.azure_endpoint and self.azure_api_key)
+
+    @property
     def effective_provider(self) -> str:
-        if self.provider == "auto":
-            return "gemini" if self.api_key else "mock"
-        return self.provider
+        """`auto`: Gemini se houver chave, senão Azure, senão mock."""
+        if self.provider != "auto":
+            return self.provider
+        if self.api_key:
+            return "gemini"
+        return "azure" if self.has_azure else "mock"
 
 
 def get_settings() -> Settings:
@@ -70,6 +79,8 @@ def get_settings() -> Settings:
         storage = BASE_DIR / storage
     settings = Settings(
         api_key=os.environ.get("GEMINI_API_KEY", "").strip(),
+        azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip(),
+        azure_api_key=os.environ.get("AZURE_OPENAI_API_KEY", "").strip(),
         provider=os.environ.get("VF_PROVIDER", "auto").strip().lower(),
         model=os.environ.get("VF_MODEL", "gemini-omni-1.1-flash").strip(),
         storage_dir=storage,

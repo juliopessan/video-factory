@@ -57,8 +57,10 @@ def frame_filter(label: str, fit: str = "crop") -> str:
 # formato, e MarginV=18 deixa a legenda a ~6% da borda de baixo.
 SUBTITLE_STYLE = (
     "FontName=DejaVu Sans,FontSize=12,PrimaryColour=&H00FFFFFF,"
-    "OutlineColour=&HB0000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=18"
+    "OutlineColour=&HB0000000,BorderStyle=3,Outline=1,Shadow=0,MarginV={margin}"
 )
+SUBTITLE_MARGIN = 18          # ~6% da altura
+SUBTITLE_MARGIN_OVER_LAYER = 40  # sobe a legenda quando há lower third no rodapé
 
 # quadro estreito comporta menos caracteres por linha antes de virar um paredao
 LINE_CHARS_BY_FORMAT = {"16:9": 42, "9:16": 26, "1:1": 32}
@@ -159,13 +161,15 @@ def build_command(
     subtitles: Path | None = None,
     normalize_audio: bool = True,
     fade: bool = True,
+    subtitle_margin: int = SUBTITLE_MARGIN,
 ) -> list[str]:
     """Monta o argv do FFmpeg. Isolado para poder ser testado sem executar nada."""
     video_chain = [frame_filter]
     if subtitles:
         # o caminho vai dentro do filtro: escapa ':' e '\' como o filtergraph espera
         escaped = str(subtitles).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
-        video_chain.append(f"subtitles='{escaped}':force_style='{SUBTITLE_STYLE}'")
+        style = SUBTITLE_STYLE.format(margin=subtitle_margin)
+        video_chain.append(f"subtitles='{escaped}':force_style='{style}'")
     if fade:
         video_chain.append("fade=t=in:st=0:d=0.5")
         if duration and duration > 1.5:
@@ -192,6 +196,78 @@ def build_command(
 
 
 # ------------------------------------------------------------------ execução
+
+
+def extract_last_frame(video: str | Path, destination: str | Path) -> Path:
+    """Último frame de um clipe, em PNG.
+
+    É o que dá continuidade quando o provider não estende cena: o frame vira o
+    `first_frame` da peça seguinte.
+    """
+    _require_ffmpeg()
+    destination = Path(destination)
+    duration = probe_duration(video) or 0
+    seek = max(duration - 0.08, 0)
+    result = subprocess.run(
+        [FFMPEG, "-y", "-loglevel", "error", "-ss", f"{seek:.3f}", "-i", str(video),
+         "-frames:v", "1", str(destination)],
+        capture_output=True, text=True, timeout=300,
+    )
+    if result.returncode != 0 or not destination.exists():
+        raise studio.StudioError(f"Não consegui extrair o último frame: {result.stderr[:300]}")
+    return destination
+
+
+def concat(sources: list[str | Path], destination: str | Path) -> Path:
+    """Emenda as peças em um arquivo só, re-encodando para uniformizar."""
+    _require_ffmpeg()
+    if not sources:
+        raise studio.StudioError("Nada para emendar.")
+    destination = Path(destination)
+    inputs: list[str] = []
+    for source in sources:
+        inputs += ["-i", str(source)]
+    streams = "".join(f"[{i}:v:0][{i}:a:0]" for i in range(len(sources)))
+    command = [
+        FFMPEG, "-y", "-loglevel", "error", *inputs,
+        "-filter_complex", f"{streams}concat=n={len(sources)}:v=1:a=1[v][a]",
+        "-map", "[v]", "-map", "[a]",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(destination),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=3600)
+    if result.returncode != 0 or not destination.exists():
+        raise studio.StudioError(f"FFmpeg falhou ao emendar: {result.stderr[:300]}")
+    return destination
+
+
+def composite(base: str | Path, layer: str | Path, destination: str | Path, start_seconds: float = 0.0) -> Path:
+    """Sobrepõe uma camada com alfa (WebM VP8 yuva420p) sobre o filme.
+
+    Dois detalhes que silenciosamente estragam o resultado se faltarem:
+    `-vcodec libvpx` na entrada e `format=yuva420p` no filtro (sem eles o alfa
+    do VP8 se perde e a camada vira um retângulo opaco), e o `scale2ref`, que
+    ajusta a camada ao tamanho do vídeo — uma camada 1080p sobre um filme 360p
+    aparece só pelo canto superior esquerdo, ou seja, não aparece.
+    """
+    _require_ffmpeg()
+    destination = Path(destination)
+    shift = f",setpts=PTS+{start_seconds}/TB" if start_seconds else ""
+    filtergraph = (
+        f"[1:v]format=yuva420p{shift}[raw];"
+        "[raw][0:v]scale2ref=w=iw:h=ih[layer][base];"
+        "[base][layer]overlay=eof_action=pass:format=auto[v]"
+    )
+    command = [
+        FFMPEG, "-y", "-loglevel", "error", "-i", str(base), "-vcodec", "libvpx", "-i", str(layer),
+        "-filter_complex", filtergraph, "-map", "[v]", "-map", "0:a?",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(destination),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=3600)
+    if result.returncode != 0 or not destination.exists():
+        raise studio.StudioError(f"FFmpeg falhou ao compor a camada: {result.stderr[:300]}")
+    return destination
 
 
 def _exports_dir() -> Path:
@@ -228,6 +304,15 @@ def get_export(export_id: str) -> dict:
     return row
 
 
+def overlay_props(context: dict, composition: str) -> dict:
+    """Props da camada de marca, tiradas do contexto do filme."""
+    accent = os.environ.get("VF_BRAND_ACCENT", "#0f6cbd")
+    brand = context.get("brand") or context.get("product") or ""
+    if composition == "Packshot":
+        return {"brand": brand, "claim": context.get("cta") or "", "accent": accent}
+    return {"title": brand, "subtitle": context.get("product") or "", "accent": accent}
+
+
 def create_exports(
     pipeline_id: str,
     formats: list[str] | None = None,
@@ -235,6 +320,7 @@ def create_exports(
     burn_subtitles: bool = True,
     normalize_audio: bool = True,
     fade: bool = True,
+    overlay: str | None = None,
 ) -> list[dict]:
     """Enfileira um export por formato, a partir do filme já renderizado."""
     from . import pipeline as pipeline_mod
@@ -244,9 +330,14 @@ def create_exports(
     completed = [r for r in pipeline["renders"] if r["status"] == "completed"]
     if not completed:
         raise studio.StudioError("Renderize o filme antes de exportar.")
-    # cada extensão devolve o filme acumulado: a última peça pronta é o master
     master = completed[-1]
     _require_video(master)
+    # com extend, cada peça já traz o filme acumulado e a última é o master;
+    # encadeado por keyframe, as peças são independentes e precisam ser emendadas
+    if pipeline.get("chaining") == "keyframe" and len(completed) > 1:
+        merged = _exports_dir() / f"{pipeline_id}_master.mp4"
+        concat([r["asset_path"] for r in completed], merged)
+        master = {**master, "asset_path": str(merged), "mime_type": "video/mp4"}
 
     formats = formats or ["16:9"]
     unknown = [f for f in formats if f not in FORMATS]
@@ -254,6 +345,17 @@ def create_exports(
         raise studio.StudioError(f"Formato desconhecido: {', '.join(unknown)}.")
     if fit not in FITS:
         raise studio.StudioError(f"Enquadramento inválido: {fit}. Use crop ou pad.")
+    if overlay:
+        from . import overlays
+
+        if overlay not in overlays.COMPOSITIONS:
+            raise studio.StudioError(
+                f"Camada desconhecida: {overlay}. Use {', '.join(overlays.COMPOSITIONS)}."
+            )
+        if not overlays.available():
+            raise studio.StudioError(
+                f"Remotion não está pronto: rode `npm install` em {overlays.PROJECT_DIR}."
+            )
 
     segments = pipeline["storyboard"].get("segments") or []
     subtitle_paths: dict[int, Path] = {}
@@ -281,6 +383,10 @@ def create_exports(
             "error": None,
             "params": json.dumps(
                 {
+                    "source_path": master["asset_path"],
+                    "overlay": overlay,
+                    "overlay_props": overlay_props(pipeline["context"], overlay) if overlay else None,
+                    "overlay_start": 1.5 if overlay == "LowerThird" else 0.0,
                     "burn_subtitles": burn_subtitles and bool(srt_path),
                     "normalize_audio": normalize_audio,
                     "fade": fade,
@@ -307,7 +413,7 @@ def run_export(export_id: str) -> None:
     try:
         generation = studio.get_generation(export["generation_id"])
         _require_video(generation)
-        source = Path(generation["asset_path"] or "")
+        source = Path(export["params"].get("source_path") or generation["asset_path"] or "")
         if not source.exists():
             raise studio.StudioError("Arquivo do filme não está mais no disco.")
 
@@ -322,12 +428,27 @@ def run_export(export_id: str) -> None:
             subtitles=Path(params["subtitles_path"]) if params.get("burn_subtitles") and params.get("subtitles_path") else None,
             normalize_audio=params.get("normalize_audio", True),
             fade=params.get("fade", True),
+            subtitle_margin=(
+                SUBTITLE_MARGIN_OVER_LAYER
+                if params.get("overlay") == "LowerThird"
+                else SUBTITLE_MARGIN
+            ),
         )
         result = subprocess.run(command, capture_output=True, text=True, timeout=3600)
         if result.returncode != 0 or not destination.exists():
             raise studio.StudioError(
                 f"FFmpeg falhou ({result.returncode}): {result.stderr.strip()[:400]}"
             )
+
+        if params.get("overlay"):
+            from . import overlays
+
+            layer = overlays.render(params["overlay"], params.get("overlay_props") or {})
+            branded = destination.with_name(f"{destination.stem}_brand.mp4")
+            composite(destination, layer, branded, float(params.get("overlay_start") or 0))
+            destination.unlink(missing_ok=True)
+            branded.rename(destination)
+
         db.update(
             "exports",
             export_id,

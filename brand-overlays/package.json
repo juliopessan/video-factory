@@ -1,0 +1,17 @@
+{
+  "name": "video-factory-brand-overlays",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Camadas de marca (lower third e packshot) renderizadas com Remotion e compostas sobre o filme pelo passo 5",
+  "scripts": {
+    "studio": "remotion studio",
+    "render:lower-third": "remotion render src/index.ts LowerThird out/lower-third.webm --codec=vp8 --pixel-format=yuva420p",
+    "render:packshot": "remotion render src/index.ts Packshot out/packshot.webm --codec=vp8 --pixel-format=yuva420p"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.518",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "remotion": "4.0.518"
+  }
+}

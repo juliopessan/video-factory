@@ -5,7 +5,7 @@ import base64
 import time
 
 from ..config import settings
-from .base import TASK_BY_MODE, ProviderError, VideoRequest, VideoResult
+from .base import DEFAULT_CAPABILITIES, TASK_BY_MODE, ProviderError, VideoRequest, VideoResult
 
 POLL_INTERVAL_SECONDS = 5
 POLL_TIMEOUT_SECONDS = 900
@@ -14,6 +14,10 @@ PENDING = {"queued", "in_progress", "requires_action"}
 
 class GeminiOmniProvider:
     name = "gemini"
+
+    @staticmethod
+    def capabilities() -> dict:
+        return dict(DEFAULT_CAPABILITIES)
 
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
         self.api_key = api_key or settings.api_key

@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS pipelines (
     story       TEXT NOT NULL,
     storyboard  TEXT NOT NULL,
     status      TEXT NOT NULL,
+    chaining    TEXT NOT NULL DEFAULT 'extend',
     error       TEXT,
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL
@@ -120,6 +121,9 @@ def init_db() -> None:
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(assets)")}
     if "duration_seconds" not in columns:
         conn.execute("ALTER TABLE assets ADD COLUMN duration_seconds REAL")
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(pipelines)")}
+    if "chaining" not in columns:
+        conn.execute("ALTER TABLE pipelines ADD COLUMN chaining TEXT NOT NULL DEFAULT 'extend'")
     conn.commit()
 
 
