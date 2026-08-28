@@ -83,6 +83,11 @@ h1 { font-size: clamp(52px, 7vw, 104px); line-height: .92; letter-spacing: -.035
 h1 em { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: -.02em; }
 .lede { max-width: 46ch; color: var(--ink-60); font-size: 17px; margin: 0 0 36px; }
 .hero-actions { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.hero-demo {
+  font: 11px/1 var(--mono); letter-spacing: .1em; color: var(--ink);
+  text-decoration: none; border-bottom: 1px solid var(--rule); padding-bottom: 4px;
+}
+.hero-demo:hover { border-bottom-color: var(--ink); }
 .runtime { font: 11px/1 var(--mono); letter-spacing: .12em; color: var(--ink-40); text-transform: uppercase; }
 
 /* --------------------------------------------------------------- console */
