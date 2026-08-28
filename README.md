@@ -15,11 +15,13 @@ e cada etapa fica salva, editável e reproduzível.*
 [![python](https://img.shields.io/badge/python-3.11+-3A3733?style=flat-square)](https://www.python.org/)
 [![providers](https://img.shields.io/badge/v%C3%ADdeo-Gemini%20Omni%20%C2%B7%20Sora--2-3A3733?style=flat-square)](#provedores-de-v%C3%ADdeo)
 
-[![Filme de 30s produzido pelo pipeline](docs/images/demo.gif)](docs/media/demo-30s.mp4)
+<video src="https://github.com/juliopessan/video-factory/raw/main/docs/media/demo-30s.mp4" poster="https://raw.githubusercontent.com/juliopessan/video-factory/main/docs/images/hero.jpg" controls playsinline width="820">
+  <a href="docs/media/demo-30s.mp4">Assistir ao filme de 30s (MP4)</a>
+</video>
 
 *Filme de 30 segundos saído do pipeline: três peças encadeadas, legenda tirada da locução do
 storyboard e lower third do Remotion. [Assistir com som (MP4, 30s)](docs/media/demo-30s.mp4) ·
-[abrir a demo](https://professional-blue-4ptsgmrc.edgeone.dev/)*
+[prévia em GIF](docs/images/demo.gif) · [abrir a demo](https://professional-blue-4ptsgmrc.edgeone.dev/)*
 
 [![Video Factory — a plataforma rodando localmente](docs/images/hero.jpg)](https://professional-blue-4ptsgmrc.edgeone.dev/)
 
