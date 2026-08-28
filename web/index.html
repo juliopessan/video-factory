@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Video Factory — produção de vídeo local</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230f0f0d'/%3E%3Ctext x='16' y='22' font-family='Helvetica,Arial' font-size='18' font-weight='700' fill='%23b7e08a' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="site-head">
+  <a class="mark" href="#">
+    <span class="glyph">V</span>
+    <span class="wordmark">VIDEO FACTORY</span>
+  </a>
+  <nav class="nav">
+    <button class="nav-link active" data-tab="pipeline">The pipeline</button>
+    <button class="nav-link" data-tab="studio">The studio</button>
+    <button class="nav-link" data-tab="drafts">Draft room</button>
+    <button class="nav-link" data-tab="library">Library</button>
+  </nav>
+  <div class="head-right">
+    <select id="project-select" class="bare-select" aria-label="Projeto"></select>
+    <button class="btn-outline" id="new-project">Novo projeto ↗</button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════ PIPELINE -->
+<main id="tab-pipeline">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow"><i></i> VIDEO PRODUCTION LAYER</p>
+      <h1>Do contexto<br /><em>ao filme.</em></h1>
+      <p class="lede">
+        Quatro passos, sem improviso: você entrega o contexto, o sistema escreve o storytelling
+        em cinco atos, monta o storyboard em peças de 10 segundos e renderiza a cena contínua —
+        cada peça estendendo a anterior.
+      </p>
+      <div class="hero-actions">
+        <button class="btn-solid" id="hero-start">Começar pelo contexto ↓</button>
+        <span class="runtime" id="runtime-badge">—</span>
+      </div>
+    </div>
+
+    <aside class="console" id="console">
+      <div class="console-top">
+        <span class="live"><i></i> LIVE PIPELINE</span>
+        <span class="ref" id="console-ref">—</span>
+      </div>
+      <p class="console-label">CURRENT RUN</p>
+      <h2 class="console-title" id="console-title">Nenhum filme em produção</h2>
+      <div class="console-metrics" id="console-metrics">
+        <div><b>00</b><span>segundos</span></div>
+        <div><b>00</b><span>peças</span></div>
+        <div><b>05</b><span>atos</span></div>
+      </div>
+      <ol class="console-steps" id="console-steps"></ol>
+      <div class="console-note" id="console-note" hidden><span class="bang">!</span><div></div></div>
+      <div class="console-foot">
+        <span id="console-owner">Provider —</span>
+        <span id="console-rule">Cena contínua ≤ 40s</span>
+      </div>
+    </aside>
+  </section>
+
+  <!-- passo 1 -->
+  <section class="step" id="step-1">
+    <div class="step-head"><span class="num">01</span><h3>Contexto</h3><p>O que o filme precisa dizer, para quem e com que cara.</p></div>
+    <form class="grid-form" id="context-form">
+      <label class="field"><span>Marca</span><input name="brand" placeholder="Contoso" /></label>
+      <label class="field"><span>Produto ou serviço *</span><input name="product" placeholder="fábrica de migração para Azure" required /></label>
+      <label class="field"><span>Público</span><input name="audience" placeholder="CIOs de grandes empresas" /></label>
+      <label class="field wide"><span>Problema (Ato 2)</span><input name="problem" placeholder="entender sistemas legados manualmente consome meses" /></label>
+      <label class="field wide"><span>Ponto de virada (Ato 3)</span><input name="turning_point" placeholder="mapeamento determinístico antes de construir" /></label>
+      <label class="field wide"><span>Valor de negócio (Ato 4) *</span><input name="value" placeholder="governança ponta a ponta, custo exato, plataforma para IA" required /></label>
+      <label class="field wide"><span>Call to action (Ato 5)</span><input name="cta" placeholder="Vamos migrar." /></label>
+      <label class="field full"><span>Elenco e figurino (inglês)</span><textarea name="characters" rows="2" placeholder="Four diverse senior architects, navy suit with ember-orange pocket square…"></textarea></label>
+      <label class="field full"><span>Estética base (inglês)</span><textarea name="aesthetic" rows="2" placeholder="Premium photorealistic footage, ARRI Alexa 35 texture…"></textarea></label>
+      <label class="field full"><span>Referência ativa — o que preservar (inglês)</span><textarea name="reference_note" rows="2" placeholder="Preserve the glowing isometric node, its proportions and the exact blue palette."></textarea></label>
+      <label class="field"><span>Frame de referência</span><input type="file" id="reference-file" accept="image/*" /></label>
+      <label class="field"><span>Duração</span><select name="duration_seconds" id="ctx-duration"></select></label>
+      <label class="field"><span>Proporção</span><select name="aspect_ratio" id="ctx-aspect"></select></label>
+      <label class="field"><span>Resolução</span><select name="resolution" id="ctx-resolution"></select></label>
+      <div class="form-foot">
+        <p class="note" id="context-error"></p>
+        <button class="btn-solid" type="submit" id="context-submit">Gerar storytelling →</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- passo 2 -->
+  <section class="step" id="step-2">
+    <div class="step-head"><span class="num">02</span><h3>Storytelling</h3><p>Cinco atos: gancho, problema, virada, valor e fechamento. Locução em PT-BR, direção de câmera em inglês.</p></div>
+    <div class="empty-slot" id="story-empty">Preencha o contexto para gerar o roteiro.</div>
+    <div id="story-body" hidden>
+      <div class="story-head" id="story-head"></div>
+      <div class="acts" id="acts"></div>
+      <div class="form-foot">
+        <p class="note" id="story-note"></p>
+        <button class="btn-outline" id="story-save">Salvar roteiro</button>
+        <button class="btn-solid" id="story-next">Montar storyboard →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- passo 3 -->
+  <section class="step" id="step-3">
+    <div class="step-head"><span class="num">03</span><h3>Storyboard</h3><p>Peças de 10 segundos. A primeira abre a cena; as seguintes continuam a mesma tomada.</p></div>
+    <div class="empty-slot" id="board-empty">O storyboard aparece assim que o roteiro estiver pronto.</div>
+    <div id="board-body" hidden>
+      <div class="board-meta" id="board-meta"></div>
+      <div class="segments" id="segments"></div>
+      <div class="form-foot">
+        <p class="note" id="board-note"></p>
+        <button class="btn-outline" id="board-recompile">Recompilar prompts</button>
+        <button class="btn-solid" id="board-next">Ir para o resultado →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- passo 4 -->
+  <section class="step last" id="step-4">
+    <div class="step-head"><span class="num">04</span><h3>Resultado final</h3><p>A peça 1 é gerada e cada extensão só começa quando a anterior fica pronta.</p></div>
+    <div class="empty-slot" id="render-empty">Nada renderizado ainda.</div>
+    <div id="render-body" hidden>
+      <div class="render-controls">
+        <label class="field inline"><span>Resolução final</span><select id="render-resolution"></select></label>
+        <button class="btn-solid" id="render-start">Renderizar filme</button>
+        <span class="note" id="render-note"></span>
+      </div>
+      <div class="render-stage">
+        <div class="player" id="player"><p class="empty">Selecione uma peça.</p></div>
+        <ol class="render-list" id="render-list"></ol>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ═══════════════════════════════════════════════════════ STUDIO -->
+<main id="tab-studio" hidden>
+  <section class="step first">
+    <div class="step-head"><span class="num">—</span><h3>Studio</h3><p>Clipe avulso: texto, frame inicial, interpolação entre primeiro e último frame ou referências.</p></div>
+    <div class="studio-grid">
+      <form class="panel-form" id="composer">
+        <label class="field"><span>Modo</span>
+          <select id="mode">
+            <option value="text_to_video">Texto → vídeo</option>
+            <option value="image_to_video">Imagem → vídeo (frame inicial)</option>
+            <option value="interpolate">Primeiro + último frame</option>
+            <option value="reference_to_video">Referências (imagem/vídeo)</option>
+          </select>
+        </label>
+        <label class="field"><span>Prompt</span><textarea id="prompt" rows="8" placeholder="Cinematic macro close-up of golden-orange maple leaves swaying in a soft autumn breeze, shallow depth of field, photorealistic"></textarea></label>
+        <div class="triple">
+          <label class="field"><span>Resolução</span><select id="resolution"></select></label>
+          <label class="field"><span>Proporção</span><select id="aspect"></select></label>
+          <label class="field"><span>Duração (s)</span><input id="duration" type="number" min="1" max="30" value="8" /></label>
+        </div>
+        <div id="media-slots" class="media-slots" hidden></div>
+        <div class="form-foot">
+          <span class="note" id="cost-estimate"></span>
+          <button class="btn-solid" type="submit">Gerar clipe</button>
+        </div>
+        <p class="note error" id="composer-error"></p>
+      </form>
+      <div class="scene-panel">
+        <div class="player" id="studio-player"><p class="empty">Nenhum clipe selecionado.</p></div>
+        <div class="scene-meta" id="scene-meta"></div>
+        <div class="scene-actions" id="scene-actions"></div>
+        <ol class="chain" id="chain"></ol>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ═══════════════════════════════════════════════════════ DRAFTS -->
+<main id="tab-drafts" hidden>
+  <section class="step first">
+    <div class="step-head"><span class="num">—</span><h3>Draft room</h3><p>Variações em 360p: mais rápidas e mais baratas. Varie uma coisa por vez e compare lado a lado.</p></div>
+    <div id="draft-inputs"></div>
+    <div class="render-controls">
+      <button class="btn-outline" id="add-variation" type="button">+ Variação</button>
+      <label class="field inline"><span>Proporção</span><select id="draft-aspect"></select></label>
+      <label class="field inline"><span>Duração (s)</span><input id="draft-duration" type="number" min="1" max="30" value="8" /></label>
+      <button class="btn-solid" id="draft-generate" type="button">Gerar rascunhos</button>
+      <span class="note error" id="draft-error"></span>
+    </div>
+    <div class="clip-grid" id="draft-grid"></div>
+  </section>
+</main>
+
+<!-- ═══════════════════════════════════════════════════════ LIBRARY -->
+<main id="tab-library" hidden>
+  <section class="step first">
+    <div class="step-head"><span class="num">—</span><h3>Library</h3><p id="library-stats">—</p></div>
+    <div class="clip-grid" id="library"></div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <span class="eyebrow"><i></i> LOCAL FIRST · SEUS ARQUIVOS FICAM EM ./storage</span>
+  <span id="foot-model">—</span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
