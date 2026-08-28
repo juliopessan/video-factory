@@ -4,11 +4,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import db, pipeline as pipeline_mod, studio, textgen
+from . import db, pipeline as pipeline_mod, postproduction, studio, textgen
 from .config import (
     ASPECT_RATIOS,
     CLIP_SECONDS,
@@ -81,6 +81,14 @@ class PipelineRenderIn(BaseModel):
     resolution: str | None = None
 
 
+class ExportIn(BaseModel):
+    formats: list[str] = Field(default_factory=lambda: ["16:9"])
+    fit: str = "crop"
+    burn_subtitles: bool = True
+    normalize_audio: bool = True
+    fade: bool = True
+
+
 class DraftBatchIn(BaseModel):
     prompts: list[str]
     aspect_ratio: str = "16:9"
@@ -116,6 +124,8 @@ def read_config() -> dict:
         "segment_seconds": pipeline_mod.SEGMENT_SECONDS,
         "text_model": textgen.TEXT_MODEL,
         "text_available": textgen.available(),
+        "postproduction": postproduction.available(),
+        "export_formats": list(postproduction.FORMATS),
     }
 
 
@@ -212,6 +222,52 @@ def post_pipeline_render(pipeline_id: str, payload: PipelineRenderIn) -> dict:
 @app.delete("/api/pipelines/{pipeline_id}", status_code=204)
 def delete_pipeline(pipeline_id: str) -> None:
     _guard(pipeline_mod.delete_pipeline, pipeline_id)
+
+
+# ---- passo 5: pos-producao local (FFmpeg)
+
+
+@app.get("/api/pipelines/{pipeline_id}/exports")
+def get_exports(pipeline_id: str) -> dict:
+    _guard(pipeline_mod.get_pipeline, pipeline_id)
+    return {
+        "available": postproduction.available(),
+        "formats": list(postproduction.FORMATS),
+        "fits": list(postproduction.FITS),
+        "exports": postproduction.list_exports(pipeline_id),
+    }
+
+
+@app.post("/api/pipelines/{pipeline_id}/exports", status_code=202)
+def post_exports(pipeline_id: str, payload: ExportIn) -> list[dict]:
+    return _guard(
+        postproduction.create_exports,
+        pipeline_id,
+        payload.formats,
+        payload.fit,
+        payload.burn_subtitles,
+        payload.normalize_audio,
+        payload.fade,
+    )
+
+
+@app.get("/api/exports/{export_id}/file")
+def get_export_file(export_id: str):
+    export = _guard(postproduction.get_export, export_id)
+    if not export["path"] or not Path(export["path"]).exists():
+        raise HTTPException(status_code=404, detail="Export ainda nao disponivel.")
+    return FileResponse(export["path"], media_type=export["mime_type"], filename=Path(export["path"]).name)
+
+
+@app.get("/api/pipelines/{pipeline_id}/subtitles")
+def get_subtitles(pipeline_id: str):
+    pipeline = _guard(pipeline_mod.get_pipeline, pipeline_id)
+    srt = postproduction.build_srt(
+        pipeline["storyboard"].get("segments") or [],
+        pipeline_mod.SEGMENT_SECONDS,
+        postproduction.LINE_CHARS_BY_FORMAT["16:9"],
+    )
+    return Response(content=srt, media_type="text/plain; charset=utf-8")
 
 
 @app.get("/api/generations/{generation_id}")

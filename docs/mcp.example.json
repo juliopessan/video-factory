@@ -1,0 +1,20 @@
+{
+  "_comment": "Copie para .mcp.json na raiz do projeto (ou aponte seu cliente MCP para cá). Servidores de terceiros: leia o código antes de dar acesso à sua mídia.",
+  "mcpServers": {
+    "kinocut": {
+      "command": "uvx",
+      "args": ["kinocut-mcp"],
+      "env": {
+        "KINOCUT_WORKDIR": "./storage",
+        "KINOCUT_FFMPEG": "ffmpeg"
+      }
+    },
+    "remotion": {
+      "command": "npx",
+      "args": ["-y", "@remotion/mcp"],
+      "env": {
+        "REMOTION_PROJECT": "./brand-overlays"
+      }
+    }
+  }
+}

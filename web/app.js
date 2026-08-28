@@ -8,6 +8,8 @@ const state = {
   projectId: null,
   pipeline: null,
   generations: [],
+  exports: [],
+  formats: ["16:9"],
   selected: null,
   poll: null,
 };
@@ -40,6 +42,9 @@ const fillSelect = (el, values, selected) => {
   el.innerHTML = values.map((v) => `<option value="${v}">${v}</option>`).join("");
   if (selected) el.value = selected;
 };
+
+const formatSize = (bytes) =>
+  !bytes ? "" : bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
 
 const mediaTag = (generation) =>
   (generation.mime_type || "").startsWith("image/")
@@ -82,6 +87,7 @@ async function refreshProject() {
     await loadPipeline(pipelines[0].id);
   } else if (!pipelines.length) {
     state.pipeline = null;
+    state.exports = [];
     renderPipeline();
   }
 }
@@ -121,6 +127,7 @@ async function submitContext(event) {
 
 async function loadPipeline(pipelineId) {
   state.pipeline = await api.get(`/api/pipelines/${pipelineId}`);
+  await loadExports();
   renderPipeline();
 }
 
@@ -131,6 +138,7 @@ function renderPipeline() {
   renderStory();
   renderBoard();
   renderRender();
+  renderPost();
 }
 
 function renderConsole() {
@@ -140,9 +148,11 @@ function renderConsole() {
     ["02", "story"],
     ["03", "board"],
     ["04", "render"],
+    ["05", "pós"],
   ];
   let reached = 0;
   if (pipeline) reached = pipeline.status === "draft" ? 3 : 4;
+  if (state.exports.some((e) => e.status === "completed")) reached = 5;
   const renders = pipeline?.renders || [];
   const completed = renders.filter((r) => r.status === "completed");
   const running = pipeline?.status === "rendering";
@@ -322,6 +332,96 @@ function renderRender() {
       ? `Cada peça devolve o filme acumulado — a peça ${finished.segment_index} é o filme completo, com ${finished.cumulative_seconds}s.`
       : "");
   $("#render-note").className = pipeline.error ? "note error" : "note";
+}
+
+/* ------------------------------------------------- passo 5: pos-producao */
+
+async function loadExports() {
+  if (!state.pipeline) {
+    state.exports = [];
+    return;
+  }
+  const payload = await api.get(`/api/pipelines/${state.pipeline.id}/exports`);
+  state.exports = payload.exports;
+  state.postAvailable = payload.available;
+}
+
+function renderPost() {
+  const pipeline = state.pipeline;
+  const ready = pipeline?.renders?.some((r) => r.status === "completed");
+  $("#post-empty").hidden = !!ready;
+  $("#post-body").hidden = !ready;
+  if (!ready) return;
+
+  $("#format-picker").innerHTML = (state.config.export_formats || [])
+    .map(
+      (label) =>
+        `<button type="button" class="fmt ${state.formats.includes(label) ? "on" : ""}" data-format="${label}">${label}</button>`
+    )
+    .join("");
+  $("#srt-link").href = `/api/pipelines/${pipeline.id}/subtitles`;
+
+  const note = $("#post-note");
+  if (!state.config.postproduction) {
+    note.textContent = "FFmpeg não encontrado — instale (apt install ffmpeg) ou aponte VF_FFMPEG.";
+    $("#export-start").disabled = true;
+  } else if (!note.dataset.sticky) {
+    note.textContent = "";
+    $("#export-start").disabled = state.exports.some((e) => e.status === "queued" || e.status === "running");
+  }
+
+  $("#exports").innerHTML = state.exports.length
+    ? state.exports
+        .map(
+          (item) => `<article class="clip export-card">
+            <div class="media">${
+              item.status === "completed"
+                ? `<video src="/api/exports/${item.id}/file" controls playsinline></video>`
+                : `<span class="empty">${item.status}</span>`
+            }</div>
+            <div class="body">
+              <div class="meta">
+                <span class="pill ${item.status}">${item.status}</span>
+                <span class="pill">${item.format}</span>
+                <span class="pill">${item.params.resolution || ""}</span>
+                <span class="pill">${item.params.fit === "pad" ? "encaixado" : "recortado"}</span>
+                ${item.params.burn_subtitles ? '<span class="pill">legendas</span>' : ""}
+                ${item.params.normalize_audio ? '<span class="pill">−14 LUFS</span>' : ""}
+              </div>
+              ${item.error ? `<p class="note error">${escapeHtml(item.error)}</p>` : ""}
+              <div class="actions">
+                <span class="filesize">${formatSize(item.size)}</span>
+                ${
+                  item.status === "completed"
+                    ? `<a class="btn-mini" href="/api/exports/${item.id}/file" download>baixar</a>`
+                    : ""
+                }
+              </div>
+            </div>
+          </article>`
+        )
+        .join("")
+    : `<div class="empty-slot">Nenhum export ainda.</div>`;
+}
+
+async function startExport() {
+  const note = $("#post-note");
+  note.textContent = "";
+  delete note.dataset.sticky;
+  try {
+    await api.post(`/api/pipelines/${state.pipeline.id}/exports`, {
+      formats: state.formats,
+      fit: $("#opt-fit").value,
+      burn_subtitles: $("#opt-subtitles").checked,
+      normalize_audio: $("#opt-audio").checked,
+      fade: $("#opt-fade").checked,
+    });
+    await loadExports();
+    renderPost();
+  } catch (err) {
+    note.textContent = err.message;
+    note.dataset.sticky = "1";
+  }
 }
 
 /* ------------------------------------------------------------- biblioteca */
@@ -603,6 +703,17 @@ function bindEvents() {
     renderRender();
   });
 
+  $("#format-picker").addEventListener("click", (event) => {
+    const label = event.target.dataset.format;
+    if (!label) return;
+    state.formats = state.formats.includes(label)
+      ? state.formats.filter((f) => f !== label)
+      : [...state.formats, label];
+    if (!state.formats.length) state.formats = [label];
+    renderPost();
+  });
+  $("#export-start").addEventListener("click", startExport);
+
   $("#mode").addEventListener("change", renderMediaSlots);
   $("#resolution").addEventListener("change", updateCost);
   $("#duration").addEventListener("input", updateCost);
@@ -641,6 +752,7 @@ function startPolling() {
   state.poll = setInterval(async () => {
     const busy =
       state.pipeline?.status === "rendering" ||
+      state.exports.some((e) => e.status === "queued" || e.status === "running") ||
       state.generations.some((g) => g.status === "queued" || g.status === "running");
     if (!busy || document.hidden) return;
     if (state.pipeline) await loadPipeline(state.pipeline.id);

@@ -120,7 +120,7 @@
   </section>
 
   <!-- passo 4 -->
-  <section class="step last" id="step-4">
+  <section class="step" id="step-4">
     <div class="step-head"><span class="num">04</span><h3>Resultado final</h3><p>A peça 1 é gerada e cada extensão só começa quando a anterior fica pronta. Cada extensão devolve o filme acumulado, então a última peça é o filme inteiro.</p></div>
     <div class="empty-slot" id="render-empty">Nada renderizado ainda.</div>
     <div id="render-body" hidden>
@@ -133,6 +133,30 @@
         <div class="player" id="player"><p class="empty">Selecione uma peça.</p></div>
         <ol class="render-list" id="render-list"></ol>
       </div>
+    </div>
+  </section>
+
+  <!-- passo 5 -->
+  <section class="step last" id="step-5">
+    <div class="step-head"><span class="num">05</span><h3>Pós-produção</h3><p>Acabamento determinístico com FFmpeg local: legendas tiradas da própria locução, áudio normalizado, fades e as versões de formato.</p></div>
+    <div class="empty-slot" id="post-empty">Renderize o filme para liberar a pós-produção.</div>
+    <div id="post-body" hidden>
+      <div class="render-controls">
+        <div class="format-picker" id="format-picker"></div>
+        <label class="field inline"><span>Enquadramento</span>
+          <select id="opt-fit">
+            <option value="crop">recortar (preenche)</option>
+            <option value="pad">encaixar (preserva o quadro)</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="opt-subtitles" checked /> <span>Legendas queimadas</span></label>
+        <label class="check"><input type="checkbox" id="opt-audio" checked /> <span>Áudio a −14 LUFS</span></label>
+        <label class="check"><input type="checkbox" id="opt-fade" checked /> <span>Fade in/out</span></label>
+        <button class="btn-solid" id="export-start">Exportar</button>
+        <a class="btn-mini" id="srt-link" href="#" download>baixar .srt</a>
+        <span class="note error" id="post-note"></span>
+      </div>
+      <div class="clip-grid" id="exports"></div>
     </div>
   </section>
 </main>

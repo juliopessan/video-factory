@@ -7,10 +7,13 @@ máquina: FastAPI + SQLite + uma interface sem build step. Os vídeos, uploads e
 O núcleo é um pipeline de quatro passos:
 
 ```
-1. Contexto  →  2. Storytelling  →  3. Storyboard  →  4. Resultado final
-   brief         5 atos (PT-BR)     peças de 10s       cena contínua
-                 + direção (EN)     + prompts EN       renderizada
+1. Contexto → 2. Storytelling → 3. Storyboard → 4. Resultado final → 5. Pós-produção
+   brief       5 atos (PT-BR)    peças de 10s     cena contínua        legendas, áudio,
+               + direção (EN)    + prompts EN     renderizada          16:9 / 9:16 / 1:1
 ```
+
+Requisito opcional: **FFmpeg** no PATH (`apt install ffmpeg` / `brew install ffmpeg`) para o
+passo 5. Sem ele, os passos 1–4 funcionam e a pós-produção aparece desabilitada com o aviso.
 
 ## Como rodar
 
@@ -30,6 +33,7 @@ Testes (offline, provider mock):
 ```bash
 python3 tests_smoke.py     # jornada completa: contexto → render → limites de domínio
 python3 tests_media.py     # leitura de duração de vídeo e corpo enviado à API por modo
+python3 tests_post.py      # legendas, argv do FFmpeg e um export real de ponta a ponta
 ```
 
 ## O pipeline
@@ -56,6 +60,16 @@ termina** — a extensão precisa do `interaction_id` do clipe anterior. Cada ex
 **filme acumulado** (10s → 20s → 30s), não apenas o trecho novo: a última peça pronta já é o
 filme inteiro, sem concatenação. Verificado contra a API: 30s em 3 peças, ~174s de render em 360p.
 
+**5. Pós-produção.** Acabamento determinístico com FFmpeg local — nada de modelo aqui:
+
+- **Legendas** tiradas da própria locução do storyboard (sem transcrição: as marcas de tempo
+  saem do plano). Locução longa vira várias legendas dentro da janela da peça, nenhuma abaixo
+  de 1,2s, quebra de linha por formato (42 colunas no 16:9, 26 no 9:16).
+- **Áudio** normalizado a −14 LUFS (EBU R128), com fade in/out opcional.
+- **Formatos** 16:9, 9:16 e 1:1, em `crop` (preenche a tela) ou `pad` (preserva o quadro).
+  Packshot com logo pede `pad`: o recorte central de um 16:9 come as pontas da marca.
+- Saída H.264/AAC com `+faststart`, pronta para publicar, baixável na interface.
+
 ## Recursos do Omni 1.1 expostos
 
 | Recurso | Onde | Detalhe |
@@ -67,6 +81,31 @@ filme inteiro, sem concatenação. Verificado contra a API: 30s em 3 peças, ~17
 | Rascunho em 360p | Draft room | variações lado a lado, promoção da vencedora para 720p/1080p/4K |
 | Upscale | Studio | 1080p e 4K a partir de um clipe pronto |
 
+## Edição automática (MCP)
+
+Duas edições diferentes, dois caminhos:
+
+- **Generativa** (mudar o que acontece no plano) — é o próprio Omni: as tasks `edit` e `extend`.
+- **Mecânica** (cortar, juntar, mixar, legendar, versionar) — é o passo 5. Para os passos fixos
+  do pipeline, FFmpeg direto em `app/postproduction.py`: determinístico, testável, sem protocolo
+  no meio.
+
+MCP entra na terceira categoria: **edição exploratória**, dirigida por conversa — *"corta os 4s
+mortos da peça 2 e põe legenda"*. Os dois que recomendo, com exemplo pronto em
+[`docs/mcp.example.json`](docs/mcp.example.json):
+
+| Servidor | Papel | Por quê |
+|---|---|---|
+| [Kinocut](https://github.com/KyaniteLabs/mcp-video) | corte, legenda, repurpose, quality gate | FFmpeg tipado com guardrails, roda local — mesmo espírito do projeto, sem upload de mídia |
+| [Remotion](https://www.remotion.dev) | lower thirds, packshot, legendas animadas, brand | composição em React, que é onde modelo generativo erra logo e tipografia |
+
+Cloudinary (no diretório de conectores do Claude) resolve entrega/CDN e variantes por URL —
+vale quando entrar distribuição, não produção. Descript e Riverside são fortes em edição por
+transcrição, mais úteis para conteúdo falado longo que para um filme de 30s.
+
+Antes de plugar qualquer servidor de terceiros na sua mídia: leia o que ele executa e se manda
+arquivo para fora. Nenhum deles foi auditado aqui.
+
 ## Arquitetura
 
 ```
@@ -77,6 +116,7 @@ app/
   pipeline.py     contexto → storytelling → storyboard → render sequencial
   textgen.py      geração de JSON estruturado para roteiro e storyboard
   mediainfo.py    duração de MP4/MOV/WebM lida do cabeçalho, sem ffmpeg
+  postproduction.py  passo 5: legendas, áudio, formatos — FFmpeg local
   providers/
     base.py       contrato VideoRequest / VideoResult
     gemini.py     client.interactions.create + polling até `completed`
@@ -106,7 +146,8 @@ client.interactions.create(
 | `VF_PROVIDER` | `auto` | `auto`, `gemini` ou `mock` |
 | `VF_MODEL` | `gemini-omni-1.1-flash` | modelo de vídeo |
 | `VF_TEXT_MODEL` | `gemini-flash-latest` | modelo de texto do roteiro/storyboard |
-| `VF_STORAGE_DIR` | `storage` | banco, mídias e uploads |
+| `VF_STORAGE_DIR` | `storage` | banco, mídias, uploads e exports |
+| `VF_FFMPEG` / `VF_FFPROBE` | do `PATH` | binários usados no passo 5 |
 | `VF_HOST` / `VF_PORT` | `127.0.0.1` / `8000` | endereço do servidor |
 
 ## Notas

@@ -67,6 +67,23 @@ CREATE TABLE IF NOT EXISTS pipeline_renders (
     PRIMARY KEY (pipeline_id, segment_index)
 );
 
+CREATE TABLE IF NOT EXISTS exports (
+    id              TEXT PRIMARY KEY,
+    pipeline_id     TEXT NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+    generation_id   TEXT NOT NULL REFERENCES generations(id),
+    format          TEXT NOT NULL,
+    status          TEXT NOT NULL,
+    path            TEXT,
+    mime_type       TEXT NOT NULL,
+    size            INTEGER NOT NULL DEFAULT 0,
+    error           TEXT,
+    params          TEXT NOT NULL DEFAULT '{}',
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_exports_pipeline ON exports(pipeline_id, created_at);
+
 CREATE TABLE IF NOT EXISTS assets (
     id          TEXT PRIMARY KEY,
     project_id  TEXT REFERENCES projects(id) ON DELETE CASCADE,

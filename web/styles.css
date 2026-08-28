@@ -177,6 +177,16 @@ input[type=file] { border: 0; font-size: 13px; padding-left: 0; }
 .prompt-block .k { color: var(--green); }
 
 /* ------------------------------------------------------------ render (4) */
+.format-picker { display: flex; gap: 8px; }
+.format-picker .fmt {
+  border: 1px solid var(--rule); padding: 8px 14px; cursor: pointer; background: transparent;
+  font: 11px/1 var(--mono); letter-spacing: .1em;
+}
+.format-picker .fmt.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-60); cursor: pointer; }
+.check input { width: auto; }
+.export-card .body { gap: 8px; }
+.export-card .filesize { font: 11px/1 var(--mono); color: var(--ink-40); }
 .render-controls { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 28px; }
 .render-stage { display: grid; grid-template-columns: 1.6fr 1fr; gap: 26px; align-items: start; }
 .player { background: var(--panel); display: grid; place-items: center; min-height: 320px; overflow: hidden; }
