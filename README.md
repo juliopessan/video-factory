@@ -52,8 +52,9 @@ ACTION AND CAMERA SEQUENCE · LIGHTING AND IMAGE QUALITY · PHYSICS · AUDIO
 Editou o storyboard? "Recompilar prompts" reescreve os prompts a partir do que está na tela.
 
 **4. Resultado final.** A peça 1 é gerada e **cada extensão só entra na fila quando a anterior
-termina** — a extensão precisa do `interaction_id` do clipe anterior. O resultado é uma cena
-contínua de 10, 20, 30 ou 40 segundos.
+termina** — a extensão precisa do `interaction_id` do clipe anterior. Cada extensão devolve o
+**filme acumulado** (10s → 20s → 30s), não apenas o trecho novo: a última peça pronta já é o
+filme inteiro, sem concatenação. Verificado contra a API: 30s em 3 peças, ~174s de render em 360p.
 
 ## Recursos do Omni 1.1 expostos
 
@@ -118,8 +119,9 @@ client.interactions.create(
   Referência acima de 3s é recusada com o nome do arquivo e a duração medida. Contêiner que não
   sabemos ler devolve duração desconhecida e passa sem o limite — melhor do que recusar um
   arquivo válido por não conseguir medi-lo.
-- **Upscale.** A documentação anuncia 1080p e 4K, mas não nomeia uma task própria para isso.
-  Aqui o upscale é um novo render da mesma interação (`previous_interaction_id`) pedindo a
-  resolução maior, **sem** `video_config.task` — o modelo determina o modo pelo texto e pela
-  mídia de entrada, como o SDK documenta. Se a API passar a expor uma task dedicada, o ajuste
-  é uma linha em `providers/base.py` (`TASK_BY_MODE["upscale"]`).
+- **Continuações não levam task.** A API recusa a combinação com
+  `400 previous_interaction_id is not allowed when video task is set`. Por isso `extend` e
+  `upscale` vão sem `video_config`: quem continua uma interação já carrega o contexto. Só as
+  aberturas de cena (`text_to_video`, `image_to_video`, `reference_to_video`) mandam a task.
+- **Upscale.** A documentação anuncia 1080p e 4K sem nomear uma task própria; aqui é um novo
+  render da mesma interação pedindo a resolução maior, com a intenção no prompt.

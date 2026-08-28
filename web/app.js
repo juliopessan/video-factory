@@ -293,22 +293,34 @@ function renderRender() {
         <li data-id="${generation.id}" class="${state.selected === generation.id ? "active" : ""}">
           <span class="idx">${String(generation.segment_index).padStart(2, "0")}</span>
           <span class="txt">${escapeHtml(generation.label || generation.prompt.slice(0, 60))}</span>
+          <span class="pill">${generation.cumulative_seconds}s</span>
           <span class="pill ${generation.status}">${generation.status}</span>
         </li>`
         )
         .join("")
     : `<li><span class="txt">Nenhuma peça renderizada.</span></li>`;
 
-  const current = renders.find((r) => r.id === state.selected) || renders.find((r) => r.status === "completed");
+  // cada extensao devolve o filme acumulado ate ali: a ultima peca pronta e o
+  // filme inteiro, entao e ela que abre no player por padrao.
+  const completedRenders = renders.filter((r) => r.status === "completed");
+  const current = renders.find((r) => r.id === state.selected) || completedRenders.at(-1);
   const player = $("#player");
   player.innerHTML = current?.status === "completed"
-    ? mediaTag(current)
+    ? mediaTag(current) +
+      `<a class="download" href="/api/generations/${current.id}/media" download>baixar peça ${current.segment_index} · ${current.cumulative_seconds}s</a>`
     : `<p class="empty">${pipeline.status === "rendering" ? "renderizando…" : "sem peça pronta"}</p>`;
 
   const busy = pipeline.status === "rendering";
   $("#render-start").disabled = busy;
   $("#render-start").textContent = busy ? "Renderizando…" : "Renderizar filme";
-  $("#render-note").textContent = pipeline.error || (busy ? "Cada extensão começa quando a peça anterior termina." : "");
+  const finished = completedRenders.at(-1);
+  $("#render-note").textContent =
+    pipeline.error ||
+    (busy
+      ? "Cada extensão começa quando a peça anterior termina."
+      : finished
+      ? `Cada peça devolve o filme acumulado — a peça ${finished.segment_index} é o filme completo, com ${finished.cumulative_seconds}s.`
+      : "");
   $("#render-note").className = pipeline.error ? "note error" : "note";
 }
 

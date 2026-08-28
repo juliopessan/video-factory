@@ -8,15 +8,17 @@ Mode = Literal["text_to_video", "image_to_video", "interpolate", "reference_to_v
 
 # Mapeia o modo da UI para o `generation_config.video_config.task` da API.
 # `None` = nao enviar `video_config`: a API entao determina o modo pelo texto e
-# pela midia de entrada. E o caso do upscale, que a documentacao anuncia como
-# recurso mas sem nomear uma task propria — aqui ele e um novo render da mesma
-# interacao (`previous_interaction_id`) pedindo uma resolucao maior.
+# pela midia de entrada.
+#
+# Continuacoes (extend e upscale) sao sempre `None`: a API recusa a combinacao
+# com "previous_interaction_id is not allowed when video task is set" (400).
+# Quem continua uma interacao ja carrega o contexto — a task seria redundante.
 TASK_BY_MODE: dict[str, str | None] = {
     "text_to_video": "text_to_video",
     "image_to_video": "image_to_video",
     "interpolate": "image_to_video",
     "reference_to_video": "reference_to_video",
-    "extend": "extend",
+    "extend": None,
     "upscale": None,
 }
 

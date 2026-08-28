@@ -87,9 +87,15 @@ check("upscale mantem a interacao de origem", upscale["previous_interaction_id"]
 check("upscale pede a resolucao maior", upscale["response_format"]["resolution"] == "4k")
 check("upscale explica a tarefa no texto", "Upscale this video" in upscale["input"][-1]["text"])
 
+# A API responde 400 "previous_interaction_id is not allowed when video task is
+# set": toda continuacao vai sem video_config.
 extend = body_for("extend", prompt="", previous_interaction_id="int_1")
-check("extend usa task extend", extend["generation_config"]["video_config"]["task"] == "extend")
+check("extend nao envia video_config", "generation_config" not in extend, str(extend.get("generation_config")))
+check("extend mantem a interacao de origem", extend["previous_interaction_id"] == "int_1")
 check("extend tem prompt padrao", extend["input"][-1]["text"] == "Continue the scene.")
+
+continued = body_for("text_to_video", previous_interaction_id="int_2")
+check("qualquer modo continuado omite a task", "generation_config" not in continued, str(continued.get("generation_config")))
 
 interp = body_for(
     "interpolate",

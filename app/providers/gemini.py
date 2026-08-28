@@ -74,7 +74,8 @@ class GeminiOmniProvider:
         }
         generation_config: dict = {}
         task = TASK_BY_MODE[request.mode]
-        if task is not None:
+        # A API recusa `video_config.task` junto de `previous_interaction_id`.
+        if task is not None and not request.previous_interaction_id:
             generation_config["video_config"] = {"task": task}
         body: dict = {
             "model": self.model,
