@@ -9,6 +9,12 @@ Contexto → Roteiro em 5 atos → Storyboard em peças de 10s → Cena renderiz
 *Você entrega o briefing; o resto do caminho até o arquivo pronto para publicar é executado —
 e cada etapa fica salva, editável e reproduzível.*
 
+### ▶ [Ver a demo](https://professional-blue-4ptsgmrc.edgeone.dev/)
+
+[![demo](https://img.shields.io/badge/demo-online-FF5800?style=flat-square)](https://professional-blue-4ptsgmrc.edgeone.dev/)
+[![python](https://img.shields.io/badge/python-3.11+-3A3733?style=flat-square)](https://www.python.org/)
+[![providers](https://img.shields.io/badge/v%C3%ADdeo-Gemini%20Omni%20%C2%B7%20Sora--2-3A3733?style=flat-square)](#provedores-de-v%C3%ADdeo)
+
 ---
 
 ## Ato 1 — O cenário atual
