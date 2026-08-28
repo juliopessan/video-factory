@@ -15,7 +15,7 @@ e cada etapa fica salva, editável e reproduzível.*
 
 *Filme de 30 segundos saído do pipeline: três peças encadeadas, legenda tirada da locução do
 storyboard e lower third do Remotion. [Assistir com som (MP4, 30s)](docs/media/demo-30s.mp4) ·
-[prévia em GIF](docs/images/demo.gif) · [abrir a demo](https://professional-blue-4ptsgmrc.edgeone.dev/)*
+[prévia em GIF](docs/images/demo.gif)*
 
 [![Video Factory — a plataforma rodando localmente](docs/images/hero.jpg)](https://professional-blue-4ptsgmrc.edgeone.dev/)
 
