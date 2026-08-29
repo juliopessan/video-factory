@@ -11,11 +11,15 @@ e cada etapa fica salva, editável e reproduzível.*
 
 ### ▶ Demo
 
-[![Filme de 30s produzido pelo pipeline](docs/images/demo.gif)](docs/media/demo-30s.mp4)
+<p align="center">
+  <a href="docs/media/demo-30s.mp4">
+    <img src="docs/images/demo.gif" alt="Filme de 30s produzido pelo pipeline" width="640">
+  </a>
+</p>
 
-*Filme de 30 segundos saído do pipeline: três peças encadeadas, legenda tirada da locução do
-storyboard e lower third do Remotion — o GIF é mudo e mostra os 7 primeiros segundos.
-[Assistir com som, os 30s completos](docs/media/demo-30s.mp4)*
+<p align="center"><em>Filme de 30 segundos saído do pipeline: três peças encadeadas, legenda tirada
+da locução do storyboard e lower third do Remotion — o GIF é mudo e mostra os 7 primeiros segundos.<br>
+<a href="docs/media/demo-30s.mp4">Assistir com som, os 30s completos</a></em></p>
 
 [![Video Factory — a plataforma rodando localmente](docs/images/hero.jpg)](https://professional-blue-4ptsgmrc.edgeone.dev/)
 
