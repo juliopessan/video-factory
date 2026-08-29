@@ -71,7 +71,7 @@ check("legendas de um mesmo trecho não se sobrepõem",
 cmd = post.build_command(
     source=Path("/in.mp4"), destination=Path("/out.mp4"),
     frame_filter=post.frame_filter("9:16"), duration=30.0,
-    subtitles=Path("/tmp/x.srt"), normalize_audio=True, fade=True,
+    subtitles=Path("/tmp/x.srt"), subtitle_mode="burn", normalize_audio=True, fade=True,
 )
 vf = cmd[cmd.index("-vf") + 1]
 af = cmd[cmd.index("-af") + 1]
@@ -80,7 +80,8 @@ check("legenda entra no filtergraph", "subtitles='/tmp/x.srt'" in vf, vf)
 check("margem padrão da legenda", "MarginV=18" in vf, vf)
 alta = post.build_command(
     source=Path("/in.mp4"), destination=Path("/out.mp4"), frame_filter="null",
-    subtitles=Path("/tmp/x.srt"), subtitle_margin=post.SUBTITLE_MARGIN_OVER_LAYER,
+    subtitles=Path("/tmp/x.srt"), subtitle_mode="burn",
+    subtitle_margin=post.SUBTITLE_MARGIN_OVER_LAYER,
 )
 check("legenda sobe quando há lower third", "MarginV=40" in alta[alta.index("-vf") + 1])
 check("fade de saída usa a duração real", "fade=t=out:st=29.20:d=0.8" in vf, vf)
@@ -100,7 +101,7 @@ check("sem duração não inventa fade de saída", "fade=t=out" not in plain[pla
 
 escaped = post.build_command(
     source=Path("/in.mp4"), destination=Path("/o.mp4"),
-    frame_filter="null", subtitles=Path("C:\\v\\x.srt"), fade=False,
+    frame_filter="null", subtitles=Path("C:\\v\\x.srt"), subtitle_mode="burn", fade=False,
 )
 escaped_vf = escaped[escaped.index("-vf") + 1]
 check("caminho de legenda com ':' e '\\' é escapado",
@@ -119,7 +120,8 @@ if post.available():
     )
     srt_file = tmp / "legenda.srt"
     srt_file.write_text(post.build_srt([{"vo": "Legenda de teste."}], 4), encoding="utf-8")
-    command = post.build_command(source, destination, post.frame_filter("9:16"), 4.0, srt_file)
+    command = post.build_command(source, destination, post.frame_filter("9:16"), 4.0, srt_file,
+                                 subtitle_mode="burn")
     result = subprocess.run(command, capture_output=True, text=True, timeout=600)
     check("ffmpeg roda o comando montado", result.returncode == 0, result.stderr[:300])
     check("arquivo de saída existe", destination.exists() and destination.stat().st_size > 0)
@@ -131,8 +133,60 @@ if post.available():
         capture_output=True, text=True, timeout=60,
     ).stdout.strip()
     check("saída 9:16 tem 1080x1920", probe == "1080,1920", probe)
+
+    # o mesmo arquivo, agora com a faixa embutida (padrão)
+    com_faixa = tmp / "soft.mp4"
+    resultado = subprocess.run(
+        post.build_command(source, com_faixa, post.frame_filter("16:9"), 4.0, srt_file),
+        capture_output=True, text=True, timeout=600,
+    )
+    check("ffmpeg embute a faixa de legenda", resultado.returncode == 0, resultado.stderr[:300])
+    faixas = subprocess.run(
+        [post.FFPROBE, "-v", "error", "-select_streams", "s", "-show_entries",
+         "stream=codec_name:stream_tags=language:stream_disposition=default",
+         "-of", "csv=p=0", str(com_faixa)],
+        capture_output=True, text=True, timeout=60,
+    ).stdout.strip()
+    # ffprobe devolve: codec, disposition:default, language
+    codec, default, idioma = (faixas.split(",") + ["", "", ""])[:3]
+    check("a faixa é mov_text, padrão e em português",
+          codec == "mov_text" and default == "1" and idioma == "por", faixas)
+    pixels = subprocess.run(
+        [post.FFPROBE, "-v", "error", "-select_streams", "v", "-count_frames",
+         "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(com_faixa)],
+        capture_output=True, text=True, timeout=300,
+    ).stdout.strip()
+    check("o vídeo continua íntegro com a faixa", pixels.rstrip(",").isdigit(), pixels)
 else:
     print("aviso  FFmpeg ausente: export real não exercitado")
+
+# ------------------------------------------------------- modos de legenda
+
+check("modo padrão é a faixa embutida", post.DEFAULT_SUBTITLE_MODE == "soft")
+
+soft = post.build_command(
+    source=Path("/in.mp4"), destination=Path("/out.mp4"), frame_filter="null",
+    subtitles=Path("/tmp/x.srt"), fade=False,
+)
+check("soft não desenha legenda nos pixels", "subtitles=" not in soft[soft.index("-vf") + 1], soft[soft.index("-vf") + 1])
+check("soft adiciona o srt como segunda entrada", soft.count("-i") == 2 and "/tmp/x.srt" in soft)
+check("soft grava a faixa como mov_text", "mov_text" in soft, " ".join(soft))
+check("soft marca a faixa como padrão", "default" in soft and "-disposition:s:0" in soft)
+check("soft declara o idioma", "language=por" in " ".join(soft))
+check("soft mapeia vídeo, áudio e legenda", {"0:v:0", "0:a?", "1:0"} <= set(soft), " ".join(soft))
+
+nenhuma = post.build_command(
+    source=Path("/in.mp4"), destination=Path("/out.mp4"), frame_filter="null",
+    subtitles=Path("/tmp/x.srt"), subtitle_mode="none", fade=False,
+)
+check("none ignora o srt", "/tmp/x.srt" not in nenhuma and "mov_text" not in nenhuma, " ".join(nenhuma))
+
+try:
+    post.build_command(source=Path("/i.mp4"), destination=Path("/o.mp4"),
+                       frame_filter="null", subtitle_mode="hardsub")
+    check("modo inválido é recusado", False, "não levantou")
+except Exception as exc:
+    check("modo inválido é recusado", "hardsub" in str(exc), str(exc))
 
 # ------------------------------------------------ fonte que não é vídeo (mock)
 

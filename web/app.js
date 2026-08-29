@@ -397,7 +397,10 @@ function renderPost() {
                 <span class="pill">${item.format}</span>
                 <span class="pill">${item.params.resolution || ""}</span>
                 <span class="pill">${item.params.fit === "pad" ? "encaixado" : "recortado"}</span>
-                ${item.params.burn_subtitles ? '<span class="pill">legendas</span>' : ""}
+                ${
+                  { soft: '<span class="pill">legenda embutida</span>',
+                    burn: '<span class="pill">legenda queimada</span>' }[item.params.subtitles] || ""
+                }
                 ${item.params.normalize_audio ? '<span class="pill">−14 LUFS</span>' : ""}
                 ${item.params.overlay ? `<span class="pill">${item.params.overlay}</span>` : ""}
               </div>
@@ -426,7 +429,7 @@ async function startExport() {
       formats: state.formats,
       fit: $("#opt-fit").value,
       overlay: $("#opt-overlay").value || null,
-      burn_subtitles: $("#opt-subtitles").checked,
+      subtitles: $("#opt-subtitles").value,
       normalize_audio: $("#opt-audio").checked,
       fade: $("#opt-fade").checked,
     });

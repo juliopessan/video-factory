@@ -62,6 +62,16 @@ SUBTITLE_STYLE = (
 SUBTITLE_MARGIN = 18          # ~6% da altura
 SUBTITLE_MARGIN_OVER_LAYER = 40  # sobe a legenda quando há lower third no rodapé
 
+# Como a legenda entra no arquivo:
+#   soft  — faixa de texto embutida no MP4 (mov_text). O espectador liga e
+#           desliga, e o texto continua editável. É o padrão.
+#   burn  — desenhada nos pixels. Necessária onde o player não mostra faixa
+#           (feed do Instagram, TikTok, LinkedIn) e irreversível.
+#   none  — sem legenda no arquivo; o .srt continua disponível para download.
+SUBTITLE_MODES = ("soft", "burn", "none")
+DEFAULT_SUBTITLE_MODE = "soft"
+SUBTITLE_LANGUAGE = "por"
+
 # quadro estreito comporta menos caracteres por linha antes de virar um paredao
 LINE_CHARS_BY_FORMAT = {"16:9": 42, "9:16": 26, "1:1": 32}
 
@@ -159,13 +169,19 @@ def build_command(
     frame_filter: str,
     duration: float | None = None,
     subtitles: Path | None = None,
+    subtitle_mode: str = DEFAULT_SUBTITLE_MODE,
     normalize_audio: bool = True,
     fade: bool = True,
     subtitle_margin: int = SUBTITLE_MARGIN,
 ) -> list[str]:
     """Monta o argv do FFmpeg. Isolado para poder ser testado sem executar nada."""
+    if subtitle_mode not in SUBTITLE_MODES:
+        raise studio.StudioError(f"Modo de legenda inválido: {subtitle_mode}.")
+    soft = bool(subtitles) and subtitle_mode == "soft"
+    burn = bool(subtitles) and subtitle_mode == "burn"
+
     video_chain = [frame_filter]
-    if subtitles:
+    if burn:
         # o caminho vai dentro do filtro: escapa ':' e '\' como o filtergraph espera
         escaped = str(subtitles).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
         style = SUBTITLE_STYLE.format(margin=subtitle_margin)
@@ -183,10 +199,21 @@ def build_command(
         if duration and duration > 1.5:
             audio_chain.append(f"afade=t=out:st={duration - 0.6:.2f}:d=0.6")
 
-    command = [FFMPEG, "-y", "-loglevel", "error", "-i", str(source),
-               "-vf", ",".join(video_chain)]
+    command = [FFMPEG, "-y", "-loglevel", "error", "-i", str(source)]
+    if soft:
+        command += ["-i", str(subtitles)]
+    command += ["-vf", ",".join(video_chain)]
     if audio_chain:
         command += ["-af", ",".join(audio_chain)]
+    if soft:
+        # a faixa de legenda entra ao lado do vídeo e do áudio, marcada como
+        # padrão: o player mostra sem o espectador procurar, e desliga num clique
+        command += [
+            "-map", "0:v:0", "-map", "0:a?", "-map", "1:0",
+            "-c:s", "mov_text",
+            "-metadata:s:s:0", f"language={SUBTITLE_LANGUAGE}",
+            "-disposition:s:0", "default",
+        ]
     command += [
         "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
@@ -317,7 +344,7 @@ def create_exports(
     pipeline_id: str,
     formats: list[str] | None = None,
     fit: str = "crop",
-    burn_subtitles: bool = True,
+    subtitles: str = DEFAULT_SUBTITLE_MODE,
     normalize_audio: bool = True,
     fade: bool = True,
     overlay: str | None = None,
@@ -345,6 +372,10 @@ def create_exports(
         raise studio.StudioError(f"Formato desconhecido: {', '.join(unknown)}.")
     if fit not in FITS:
         raise studio.StudioError(f"Enquadramento inválido: {fit}. Use crop ou pad.")
+    if subtitles not in SUBTITLE_MODES:
+        raise studio.StudioError(
+            f"Modo de legenda inválido: {subtitles}. Use {', '.join(SUBTITLE_MODES)}."
+        )
     if overlay:
         from . import overlays
 
@@ -358,6 +389,7 @@ def create_exports(
             )
 
     segments = pipeline["storyboard"].get("segments") or []
+    # o .srt é sempre escrito: serve para o modo soft, para o burn e para download
     subtitle_paths: dict[int, Path] = {}
     for line_chars in {LINE_CHARS_BY_FORMAT.get(label, MAX_LINE_CHARS) for label in formats}:
         srt = build_srt(segments, pipeline_mod.SEGMENT_SECONDS, line_chars)
@@ -387,7 +419,7 @@ def create_exports(
                     "overlay": overlay,
                     "overlay_props": overlay_props(pipeline["context"], overlay) if overlay else None,
                     "overlay_start": 1.5 if overlay == "LowerThird" else 0.0,
-                    "burn_subtitles": burn_subtitles and bool(srt_path),
+                    "subtitles": subtitles if srt_path else "none",
                     "normalize_audio": normalize_audio,
                     "fade": fade,
                     "fit": fit,
@@ -425,7 +457,12 @@ def run_export(export_id: str) -> None:
             destination=destination,
             frame_filter=frame_filter(label, params.get("fit", "crop")),
             duration=probe_duration(source),
-            subtitles=Path(params["subtitles_path"]) if params.get("burn_subtitles") and params.get("subtitles_path") else None,
+            subtitles=(
+                Path(params["subtitles_path"])
+                if params.get("subtitles") in ("soft", "burn") and params.get("subtitles_path")
+                else None
+            ),
+            subtitle_mode=params.get("subtitles") or "none",
             normalize_audio=params.get("normalize_audio", True),
             fade=params.get("fade", True),
             subtitle_margin=(

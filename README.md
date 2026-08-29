@@ -96,9 +96,9 @@ passam por modelo nenhum: é FFmpeg local, com resultado igual toda vez que roda
   no mesmo projeto. "Troca o terceiro ato" vira editar um campo e recompilar.
 - **Iteração barata antes do render caro.** O Draft Room gera variações em 360p lado a lado; só a
   vencedora sobe para 720p, 1080p ou 4K.
-- **Publicável, não "quase pronto".** O que sai é H.264/AAC com `+faststart`, legenda queimada,
-  áudio a −14 LUFS e as versões 16:9, 9:16 e 1:1 — nas duas opções de enquadramento, porque corte
-  central come logo de packshot.
+- **Publicável, não "quase pronto".** O que sai é H.264/AAC com `+faststart`, legenda como faixa
+  embutida (o espectador liga e desliga), áudio a −14 LUFS e as versões 16:9, 9:16 e 1:1 — nas duas
+  opções de enquadramento, porque corte central come logo de packshot.
 - **Sem dependência de nuvem para o que não precisa.** Só a geração de vídeo sai da máquina.
   Roteiro, storyboard, montagem, legenda, marca e arquivos ficam em `./storage`.
 - **Trocar de modelo é configuração, não reescrita.** Gemini Omni e Sora-2 no Foundry atrás do
@@ -166,7 +166,15 @@ já é o filme inteiro.
 
 - **Legendas** tiradas da própria locução do storyboard — sem transcrição, os tempos saem do plano.
   Locução longa vira várias legendas dentro da janela da peça, nenhuma abaixo de 1,2s, com quebra
-  de linha por formato (42 colunas no 16:9, 26 no 9:16).
+  de linha por formato (42 colunas no 16:9, 26 no 9:16). Três modos, e o padrão é o reversível:
+
+  | Modo | O que faz | Quando usar |
+  |---|---|---|
+  | `soft` *(padrão)* | faixa `mov_text` embutida no MP4, marcada como padrão e em `por` | player, YouTube, site — o espectador liga e desliga, e o texto continua editável |
+  | `burn` | desenhada nos pixels | feed do Instagram, TikTok, LinkedIn, onde não há faixa selecionável — irreversível |
+  | `none` | nenhuma legenda no arquivo | quando a legenda entra depois, em outra ferramenta |
+
+  O `.srt` é sempre gerado e fica disponível para download, nos três modos.
 - **Áudio** normalizado a −14 LUFS (EBU R128), com fades opcionais.
 - **Formatos** 16:9, 9:16 e 1:1, em `crop` (preenche a tela) ou `pad` (preserva o quadro).
 - **Camada de marca** opcional, renderizada com Remotion e composta por cima.

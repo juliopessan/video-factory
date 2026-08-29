@@ -155,7 +155,13 @@
         <label class="field inline"><span>Camada de marca</span>
           <select id="opt-overlay"><option value="">nenhuma</option></select>
         </label>
-        <label class="check"><input type="checkbox" id="opt-subtitles" checked /> <span>Legendas queimadas</span></label>
+        <label class="field inline"><span>Legendas</span>
+          <select id="opt-subtitles">
+            <option value="soft" selected>faixa embutida (o espectador liga/desliga)</option>
+            <option value="burn">queimadas no vídeo</option>
+            <option value="none">sem legenda</option>
+          </select>
+        </label>
         <label class="check"><input type="checkbox" id="opt-audio" checked /> <span>Áudio a −14 LUFS</span></label>
         <label class="check"><input type="checkbox" id="opt-fade" checked /> <span>Fade in/out</span></label>
         <button class="btn-solid" id="export-start">Exportar</button>

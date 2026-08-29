@@ -85,7 +85,7 @@ class ExportIn(BaseModel):
     formats: list[str] = Field(default_factory=lambda: ["16:9"])
     fit: str = "crop"
     overlay: str | None = None
-    burn_subtitles: bool = True
+    subtitles: str = "soft"
     normalize_audio: bool = True
     fade: bool = True
 
@@ -239,6 +239,7 @@ def get_exports(pipeline_id: str) -> dict:
         "available": postproduction.available(),
         "formats": list(postproduction.FORMATS),
         "fits": list(postproduction.FITS),
+        "subtitle_modes": list(postproduction.SUBTITLE_MODES),
         "overlays": list(overlays.COMPOSITIONS) if overlays.available() else [],
         "exports": postproduction.list_exports(pipeline_id),
     }
@@ -251,7 +252,7 @@ def post_exports(pipeline_id: str, payload: ExportIn) -> list[dict]:
         pipeline_id,
         payload.formats,
         payload.fit,
-        payload.burn_subtitles,
+        payload.subtitles,
         payload.normalize_audio,
         payload.fade,
         payload.overlay,
