@@ -9,6 +9,8 @@ Contexto → Roteiro em 5 atos → Storyboard em peças de 10s → Cena renderiz
 *Você entrega o briefing; o resto do caminho até o arquivo pronto para publicar é executado —
 e cada etapa fica salva, editável e reproduzível.*
 
+[![Video Factory — a plataforma rodando localmente](docs/images/hero.jpg)](https://professional-blue-4ptsgmrc.edgeone.dev/)
+
 ### ▶ Demo
 
 <p align="center">
@@ -20,8 +22,6 @@ e cada etapa fica salva, editável e reproduzível.*
 <p align="center"><em>Filme de 30 segundos saído do pipeline: três peças encadeadas, legenda tirada
 da locução do storyboard e lower third do Remotion — o GIF é mudo e mostra os 7 primeiros segundos.<br>
 <a href="docs/media/demo-30s.mp4">Assistir com som, os 30s completos</a></em></p>
-
-[![Video Factory — a plataforma rodando localmente](docs/images/hero.jpg)](https://professional-blue-4ptsgmrc.edgeone.dev/)
 
 ---
 
