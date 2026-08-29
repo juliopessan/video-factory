@@ -4,6 +4,7 @@ Roda offline no provider mock: `python3 tests_smoke.py`.
 """
 from __future__ import annotations
 
+import json
 import os
 import struct
 import tempfile
@@ -84,6 +85,19 @@ with client:
     check("pecas seguintes estendem", [s["mode"] for s in segments[1:]] == ["extend", "extend"])
     check("prompt tem blocos do template", "ACTION AND CAMERA SEQUENCE" in segments[0]["prompt"])
     check("continuacao explicita", segments[1]["prompt"].startswith("CONTINUATION"))
+
+    # editar a locução de um ato precisa chegar na peça e no prompt
+    story_editada = json.loads(json.dumps(pipeline["story"]))
+    story_editada["acts"][0]["vo"] = "Locução editada à mão no passo 2."
+    depois = client.patch(f"/api/pipelines/{pipeline['id']}", json={"story": story_editada}).json()
+    check("edição do ato chega na locução da peça",
+          "Locução editada à mão no passo 2." in depois["storyboard"]["segments"][0]["vo"],
+          depois["storyboard"]["segments"][0]["vo"][:80])
+    check("edição do ato chega no prompt compilado",
+          "Locução editada à mão no passo 2." in depois["storyboard"]["segments"][0]["prompt"])
+    check("direção de câmera da peça não é tocada",
+          depois["storyboard"]["segments"][0]["shot_sequence"] == pipeline["storyboard"]["segments"][0]["shot_sequence"])
+    pipeline = depois
 
     # edicao manual do storyboard e regeracao de prompts
     board = pipeline["storyboard"]

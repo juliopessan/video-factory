@@ -287,9 +287,12 @@ def composite(base: str | Path, layer: str | Path, destination: str | Path, star
     )
     command = [
         FFMPEG, "-y", "-loglevel", "error", "-i", str(base), "-vcodec", "libvpx", "-i", str(layer),
-        "-filter_complex", filtergraph, "-map", "[v]", "-map", "0:a?",
+        "-filter_complex", filtergraph,
+        # `0:s?` mantém a faixa de legenda do arquivo de origem: sem isso, compor
+        # a camada de marca apaga a legenda embutida no passo anterior
+        "-map", "[v]", "-map", "0:a?", "-map", "0:s?",
         "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(destination),
+        "-c:a", "aac", "-b:a", "192k", "-c:s", "copy", "-movflags", "+faststart", str(destination),
     ]
     result = subprocess.run(command, capture_output=True, text=True, timeout=3600)
     if result.returncode != 0 or not destination.exists():

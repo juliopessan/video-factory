@@ -504,17 +504,37 @@ def list_pipelines(project_id: str) -> list[dict]:
     return rows
 
 
+def sync_vo_from_story(story: dict, storyboard: dict) -> dict:
+    """Reescreve a locução de cada peça a partir dos atos que ela cobre.
+
+    A locução do storyboard é derivada do roteiro: se o ato foi editado no passo
+    2, a peça correspondente precisa acompanhar, senão o prompt compilado
+    continua falando o texto antigo. Direção de câmera, primeiro frame e
+    continuidade não são tocados — só a fala.
+    """
+    acts = {a.get("n"): a for a in (story.get("acts") or [])}
+    for segment in storyboard.get("segments") or []:
+        cobertos = [acts[n] for n in (segment.get("acts") or []) if n in acts]
+        if cobertos:
+            segment["vo"] = " ".join((a.get("vo") or "").strip() for a in cobertos).strip()
+    return storyboard
+
+
 def update_pipeline(pipeline_id: str, story: dict | None = None, storyboard: dict | None = None) -> dict:
     pipeline = get_pipeline(pipeline_id)
     data: dict = {}
     if story is not None:
         data["story"] = json.dumps(story, ensure_ascii=False)
+        if storyboard is None and pipeline.get("storyboard", {}).get("segments"):
+            # o roteiro mudou: a locução das peças acompanha
+            storyboard = sync_vo_from_story(story, pipeline["storyboard"])
     if storyboard is not None:
         for index, segment in enumerate(storyboard.get("segments", [])):
             segment["index"] = index + 1
             segment["duration_seconds"] = SEGMENT_SECONDS
             segment["mode"] = "extend" if index else _first_mode(pipeline["context"])
-            if not segment.get("prompt"):
+            if story is not None or not segment.get("prompt"):
+                # roteiro editado invalida o prompt antigo: recompila com a fala nova
                 segment["prompt"] = render_prompt(
                     pipeline["context"], story or pipeline["story"], storyboard, segment, index
                 )

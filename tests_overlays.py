@@ -80,6 +80,19 @@ check("áudio do filme é preservado",
           [post.FFPROBE, "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(out)],
           capture_output=True, text=True).stdout)
 
+# a legenda embutida antes da composição não pode sumir por causa da camada
+com_legenda = tmp / "com_legenda.mp4"
+srt = tmp / "legenda.srt"
+srt.write_text(post.build_srt([{"vo": "Legenda de teste."}], 4), encoding="utf-8")
+subprocess.run(post.build_command(base, com_legenda, post.frame_filter("16:9"), 4.0, srt),
+               check=True, timeout=600)
+composto = post.composite(com_legenda, layer, tmp / "camada_e_legenda.mp4")
+tipos = subprocess.run(
+    [post.FFPROBE, "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(composto)],
+    capture_output=True, text=True).stdout.split()
+check("a faixa de legenda sobrevive à camada de marca",
+      tipos == ["video", "audio", "subtitle"], str(tipos))
+
 # a camada é 1920x1080 e o filme 640x360: sem scale2ref ela cairia fora do quadro
 frame = tmp / "frame.png"
 subprocess.run([post.FFMPEG, "-y", "-loglevel", "error", "-ss", "2", "-i", str(out),
