@@ -9,11 +9,7 @@ Contexto → Roteiro em 5 atos → Storyboard em peças de 10s → Cena renderiz
 *Você entrega o briefing; o resto do caminho até o arquivo pronto para publicar é executado —
 e cada etapa fica salva, editável e reproduzível.*
 
-### ▶ Demo: **https://professional-blue-4ptsgmrc.edgeone.dev/**
-
-[![demo](https://img.shields.io/badge/demo-online-FF5800?style=flat-square)](https://professional-blue-4ptsgmrc.edgeone.dev/)
-[![python](https://img.shields.io/badge/python-3.11+-3A3733?style=flat-square)](https://www.python.org/)
-[![providers](https://img.shields.io/badge/v%C3%ADdeo-Gemini%20Omni%20%C2%B7%20Sora--2-3A3733?style=flat-square)](#provedores-de-v%C3%ADdeo)
+### ▶ Demo
 
 <video src="https://github.com/juliopessan/video-factory/raw/main/docs/media/demo-30s.mp4" poster="https://raw.githubusercontent.com/juliopessan/video-factory/main/docs/images/hero.jpg" controls playsinline width="820">
   <a href="docs/media/demo-30s.mp4">Assistir ao filme de 30s (MP4)</a>
@@ -21,13 +17,13 @@ e cada etapa fica salva, editável e reproduzível.*
 
 *Filme de 30 segundos saído do pipeline: três peças encadeadas, legenda tirada da locução do
 storyboard e lower third do Remotion. [Assistir com som (MP4, 30s)](docs/media/demo-30s.mp4) ·
-[prévia em GIF](docs/images/demo.gif) · [abrir a demo](https://professional-blue-4ptsgmrc.edgeone.dev/)*
+[prévia em GIF](docs/images/demo.gif)*
 
 [![Video Factory — a plataforma rodando localmente](docs/images/hero.jpg)](https://professional-blue-4ptsgmrc.edgeone.dev/)
 
 ---
 
-## Ato 1 — O cenário atual
+## O cenário atual
 
 Gerar vídeo com IA deixou de ser o gargalo. O gargalo é tudo o que existe **entre** o briefing e
 um arquivo que dá para publicar: alguém escreve o roteiro, alguém traduz o roteiro em planos,
@@ -55,7 +51,7 @@ flowchart LR
 
 ---
 
-## Ato 2 — O que muda
+## O que muda
 
 As etapas continuam as mesmas, e é esse o ponto: isto não é um processo novo, é o mesmo processo
 com o meio do caminho executado e versionado. **Briefing e roteiro continuam sendo decisão sua** —
@@ -96,7 +92,7 @@ passam por modelo nenhum: é FFmpeg local, com resultado igual toda vez que roda
 
 ---
 
-## Ato 3 — O resultado
+## O resultado
 
 - **Uma fonte da verdade por filme.** Contexto, roteiro, storyboard, prompts, peças e exports vivem
   no mesmo projeto. "Troca o terceiro ato" vira editar um campo e recompilar.
