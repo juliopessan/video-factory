@@ -66,6 +66,17 @@ with client:
     pipeline = client.post(f"/api/projects/{project['id']}/pipelines", json=context).json()
     check("pipeline criado", bool(pipeline.get("id")), str(pipeline)[:200])
     check("storytelling em 5 atos", len(pipeline["story"]["acts"]) == 5)
+    beats = [a.get("script_beat") for a in pipeline["story"]["acts"]]
+    check("padrão de script intro-hook-meat-cta nos atos",
+          beats == ["hook", "meat", "meat", "meat", "cta"], str(beats))
+    check("Ato 1 abre com intro e hook",
+          pipeline["storyboard"]["segments"][0]["script_beats"][:2] == ["intro", "hook"],
+          str(pipeline["storyboard"]["segments"][0]["script_beats"]))
+    check("a última peça carrega o cta",
+          "cta" in pipeline["storyboard"]["segments"][-1]["script_beats"],
+          str(pipeline["storyboard"]["segments"][-1]["script_beats"]))
+    check("o beat entra no prompt compilado",
+          "SCRIPT BEAT" in pipeline["storyboard"]["segments"][0]["prompt"])
     check("locucao em portugues", all(a["vo"] for a in pipeline["story"]["acts"]))
     segments = pipeline["storyboard"]["segments"]
     check("storyboard com 3 pecas de 10s", len(segments) == 3, f"{len(segments)} pecas")

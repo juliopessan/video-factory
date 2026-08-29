@@ -17,13 +17,31 @@ from .config import EXTENSION_SECONDS, MAX_CUMULATIVE_SECONDS, RESOLUTIONS, sett
 
 SEGMENT_SECONDS = EXTENSION_SECONDS  # 10s por peca, como no modelo de referencia
 
+# Padrão de script: intro → hook → meat → cta. Os cinco atos continuam sendo a
+# espinha do filme; cada um carrega um beat do script, e o "meat" ocupa três
+# atos porque é onde mora a substância (problema, virada e valor).
+SCRIPT_BEATS = ("intro", "hook", "meat", "cta")
+
+BEAT_BRIEF = {
+    "intro": "Situe em uma frase: quem fala, sobre o quê e onde. Sem preâmbulo, sem saudação.",
+    "hook": "Crie a tensão que segura o espectador: o risco de continuar como está, dito de "
+            "forma concreta. É a frase que faz a pessoa não pular o vídeo.",
+    "meat": "Entregue a substância: o custo real do jeito atual, a mudança de abordagem e o "
+            "valor que ela produz. Concreto, sem adjetivo vazio.",
+    "cta": "Feche com uma ação clara e curta. Uma frase, no imperativo ou no convite direto.",
+}
+
+# (nome do ato, o que ele carrega, beat do script)
 ACT_BLUEPRINT = [
-    ("O Gancho", "O risco do status quo"),
-    ("O Problema Real", "O custo do jeito atual"),
-    ("O Ponto de Virada", "A nova abordagem"),
-    ("O Valor de Negócio", "O resultado tangível"),
-    ("Call to Action", "O fechamento"),
+    ("O Gancho", "Intro e risco do status quo", "hook"),
+    ("O Problema Real", "O custo do jeito atual", "meat"),
+    ("O Ponto de Virada", "A nova abordagem", "meat"),
+    ("O Valor de Negócio", "O resultado tangível", "meat"),
+    ("Call to Action", "O fechamento", "cta"),
 ]
+
+# O Ato 1 abre com a intro e vira hook em seguida: é um ato, dois beats.
+ACT_OPENING_BEATS = {1: ("intro", "hook")}
 
 DEFAULT_AESTHETIC = (
     "Premium photorealistic footage, ARRI Alexa 35 texture, high-end corporate "
@@ -35,6 +53,18 @@ Escreva um roteiro em 5 Atos para um filme publicitario curto, no formato execut
 Ato 1 O Gancho (risco do status quo), Ato 2 O Problema Real, Ato 3 O Ponto de Virada,
 Ato 4 O Valor de Negocio, Ato 5 Call to Action.
 
+PADRAO DE SCRIPT — intro, hook, meat, cta. Todo roteiro segue esta ordem, e cada
+ato declara o beat que carrega no campo `script_beat`:
+- intro: a primeira frase do Ato 1. Situa quem fala, sobre o que e onde, em uma
+  linha. Sem saudacao, sem "neste video", sem preambulo.
+- hook: ainda no Ato 1. A tensao que segura o espectador — o risco concreto de
+  continuar como esta. E a frase que faz a pessoa nao pular.
+- meat: Atos 2, 3 e 4. A substancia: o custo real do jeito atual, a mudanca de
+  abordagem e o valor que ela produz. Concreto, sem adjetivo vazio.
+- cta: Ato 5. Uma acao clara e curta, no imperativo ou como convite direto.
+
+Escreva o Ato 1 como duas frases nessa ordem: primeiro a intro, depois o hook.
+
 Regras:
 - A locucao (`vo`) e SEMPRE em portugues do Brasil, na primeira pessoa do plural, curta e
   falavel dentro do tempo do ato (aproximadamente 2,5 palavras por segundo).
@@ -42,7 +72,9 @@ Regras:
   lente/campo de visao em graus, altura e movimento de camera, acao dos personagens.
   Use cortes motivados (HARD CUT, MATCH CUT, WHIP CUT) e uma ideia visual nova por ato.
 - Nada de subtitulos, marcas de terceiros ou musica licenciada.
-- Nunca invente numeros, clientes ou resultados que nao estejam no contexto."""
+- Nunca invente numeros, clientes ou resultados que nao estejam no contexto.
+- `script_beat` e um de: intro, hook, meat, cta. O Ato 1 usa "hook" (ele abre com
+  a intro e emenda no hook), os Atos 2 a 4 usam "meat" e o Ato 5 usa "cta"."""
 
 STORY_SCHEMA = {
     "type": "object",
@@ -58,11 +90,12 @@ STORY_SCHEMA = {
                     "n": {"type": "integer"},
                     "name": {"type": "string"},
                     "beat": {"type": "string"},
+                    "script_beat": {"type": "string", "enum": list(SCRIPT_BEATS)},
                     "timecode": {"type": "string"},
                     "vo": {"type": "string"},
                     "action_camera": {"type": "string"},
                 },
-                "required": ["n", "name", "beat", "timecode", "vo", "action_camera"],
+                "required": ["n", "name", "beat", "script_beat", "timecode", "vo", "action_camera"],
             },
         },
         "direction_notes": {
@@ -78,6 +111,8 @@ STORYBOARD_SYSTEM = """Voce transforma um roteiro de 5 Atos em um storyboard de 
 para um modelo de video generativo. Divida o filme em segmentos de 10 segundos.
 
 Para cada segmento devolva:
+- `script_beats`: quais beats do padrao intro/hook/meat/cta o segmento cobre, na
+  ordem em que aparecem (o primeiro segmento comeca com intro e hook);
 - `vo`: a locucao em portugues que roda naquele trecho (junte os atos cobertos);
 - `shot_sequence`: em ingles, a sequencia de planos com cortes motivados, campo de visao
   em graus, altura e movimento de camera, acao dos personagens e transicoes;
@@ -105,6 +140,10 @@ STORYBOARD_SCHEMA = {
                     "index": {"type": "integer"},
                     "timecode": {"type": "string"},
                     "acts": {"type": "array", "items": {"type": "integer"}},
+                    "script_beats": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": list(SCRIPT_BEATS)},
+                    },
                     "vo": {"type": "string"},
                     "first_frame": {"type": "string"},
                     "shot_sequence": {"type": "string"},
@@ -197,12 +236,16 @@ def _fallback_story(context: dict) -> dict:
     brand = context["brand"] or "a companhia"
     problem = context["problem"] or "a nossa própria fundação"
     turning = context["turning_point"] or "mapeamos tudo de forma determinística antes de construir"
+    produto = context["product"]
+    publico = context["audience"] or "quem decide"
     lines = [
-        f"Neste exato momento, nossa maior barreira para o crescimento não é o mercado. É {problem}.",
+        # Ato 1 = intro + hook, nessa ordem
+        f"{brand} constrói {produto} para {publico}. "
+        f"E, neste exato momento, a maior barreira para o crescimento não é o mercado: é {problem}.",
         "Resolver isso do jeito manual consome meses — e decisões baseadas em suposição estouram prazo e orçamento.",
         f"Então mudamos a abordagem: {turning}.",
         f"O resultado? {context['value']}.",
-        context["cta"] or "Não é apenas uma mudança técnica. É velocidade de mercado.",
+        context["cta"] or "Não é apenas uma mudança técnica. É velocidade de mercado. Vamos começar.",
     ]
     shots = [
         "OPENING SHOT — 107° wide rectilinear view, camera 60 cm above a glossy dark glass table. "
@@ -222,7 +265,7 @@ def _fallback_story(context: dict) -> dict:
         "pedestal. Slow 29° short-telephoto push, premium parallax, razor-sharp.",
     ]
     acts, cursor = [], 0
-    for i, (name, beat) in enumerate(ACT_BLUEPRINT):
+    for i, (name, beat, script_beat) in enumerate(ACT_BLUEPRINT):
         seconds = round(total * weights[i])
         if i == len(ACT_BLUEPRINT) - 1:
             seconds = total - cursor
@@ -231,6 +274,7 @@ def _fallback_story(context: dict) -> dict:
                 "n": i + 1,
                 "name": name,
                 "beat": beat,
+                "script_beat": script_beat,
                 "timecode": _timecode(cursor, cursor + seconds),
                 "vo": lines[i],
                 "action_camera": shots[i],
@@ -274,8 +318,12 @@ def build_storyboard(context: dict, story: dict) -> dict:
         board["warning"] = "Sem GEMINI_API_KEY: storyboard montado a partir do template local."
 
     segments = board.get("segments") or []
+    acts_by_number = {a.get("n"): a for a in (story.get("acts") or [])}
     for index, segment in enumerate(segments):
         segment["index"] = index + 1
+        if not segment.get("script_beats"):
+            covered = [acts_by_number[n] for n in (segment.get("acts") or []) if n in acts_by_number]
+            segment["script_beats"] = _beats_for(covered) or (["intro", "hook"] if index == 0 else ["meat"])
         segment.setdefault("timecode", _timecode(index * SEGMENT_SECONDS, (index + 1) * SEGMENT_SECONDS))
         segment["duration_seconds"] = SEGMENT_SECONDS
         segment["mode"] = "extend" if index else _first_mode(context)
@@ -293,6 +341,16 @@ def chaining_strategy(provider: str | None = None) -> str:
     return "extend" if provider_capabilities(provider).get("extend", True) else "keyframe"
 
 
+def _beats_for(acts: list[dict]) -> list[str]:
+    """Beats do script cobertos por um conjunto de atos, sem repetir e em ordem."""
+    beats: list[str] = []
+    for act in acts:
+        for beat in ACT_OPENING_BEATS.get(act.get("n"), (act.get("script_beat") or "meat",)):
+            if beat not in beats:
+                beats.append(beat)
+    return beats
+
+
 def _fallback_storyboard(context: dict, story: dict, count: int) -> dict:
     acts = story.get("acts") or []
     per_segment = max(1, math.ceil(len(acts) / count))
@@ -304,6 +362,7 @@ def _fallback_storyboard(context: dict, story: dict, count: int) -> dict:
                 "index": index + 1,
                 "timecode": _timecode(index * SEGMENT_SECONDS, (index + 1) * SEGMENT_SECONDS),
                 "acts": [a.get("n") for a in chunk],
+                "script_beats": _beats_for(chunk),
                 "vo": " ".join(a.get("vo", "") for a in chunk).strip(),
                 "first_frame": (
                     "The first visible frame already contains the hero concept in the extreme foreground "
@@ -371,6 +430,14 @@ def render_prompt(context: dict, story: dict, board: dict, segment: dict, index:
             + segment.get("continuity", "")
         )
 
+    beats = segment.get("script_beats") or []
+    if beats:
+        blocks.append(
+            "SCRIPT BEAT\n"
+            + " → ".join(beats).upper()
+            + ". "
+            + " ".join(BEAT_BRIEF[b] for b in beats if b in BEAT_BRIEF)
+        )
     blocks.append(f"ACTION AND CAMERA SEQUENCE\n{segment.get('shot_sequence', '')}")
     blocks.append(f"LIGHTING AND IMAGE QUALITY\n{board.get('lighting', context['aesthetic'])}")
     if index == 0:

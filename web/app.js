@@ -202,7 +202,8 @@ function renderStory() {
       (act, index) => `
       <div class="act" data-index="${index}">
         <div class="act-id">Ato ${act.n} · ${escapeHtml(act.timecode || "")}
-          <b>${escapeHtml(act.name || "")}</b>${escapeHtml(act.beat || "")}</div>
+          <b>${escapeHtml(act.name || "")}</b>${escapeHtml(act.beat || "")}
+          <span class="beat">${escapeHtml(act.script_beat || "")}</span></div>
         <div><span class="label">Locução (PT-BR)</span>
           <textarea rows="4" data-field="vo">${escapeHtml(act.vo || "")}</textarea></div>
         <div class="en"><span class="label">Ação e câmera (EN)</span>
@@ -251,6 +252,7 @@ function renderBoard() {
           <span class="mode">${segment.duration_seconds}s</span>
           <span class="grow"></span>
           <span class="pill">atos ${(segment.acts || []).join(", ")}</span>
+          <span class="pill beat-pill">${(segment.script_beats || []).join(" → ")}</span>
         </header>
         <div class="body">
           <div class="col">
