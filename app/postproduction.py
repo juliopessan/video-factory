@@ -60,7 +60,7 @@ SUBTITLE_STYLE = (
     "OutlineColour=&HB0000000,BorderStyle=3,Outline=1,Shadow=0,MarginV={margin}"
 )
 SUBTITLE_MARGIN = 18          # ~6% da altura
-SUBTITLE_MARGIN_OVER_LAYER = 40  # sobe a legenda quando há lower third no rodapé
+SUBTITLE_MARGIN_OVER_LAYER = 62  # o lower third ocupa ~20% do rodapé: a legenda passa acima dele
 
 # Como a legenda entra no arquivo:
 #   soft  — faixa de texto embutida no MP4 (mov_text). O espectador liga e

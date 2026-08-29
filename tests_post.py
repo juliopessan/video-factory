@@ -83,7 +83,7 @@ alta = post.build_command(
     subtitles=Path("/tmp/x.srt"), subtitle_mode="burn",
     subtitle_margin=post.SUBTITLE_MARGIN_OVER_LAYER,
 )
-check("legenda sobe quando há lower third", "MarginV=40" in alta[alta.index("-vf") + 1])
+check("legenda sobe quando há lower third", "MarginV=62" in alta[alta.index("-vf") + 1])
 check("fade de saída usa a duração real", "fade=t=out:st=29.20:d=0.8" in vf, vf)
 check("áudio normalizado a -14 LUFS", "loudnorm=I=-14:TP=-1.5:LRA=11" in af, af)
 check("saída é h264/aac com faststart", {"libx264", "aac", "+faststart"} <= set(cmd), " ".join(cmd))
