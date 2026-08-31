@@ -199,6 +199,97 @@ input[type=file] { border: 0; font-size: 13px; padding-left: 0; }
 .export-card .filesize { font: 11px/1 var(--mono); color: var(--ink-40); }
 .render-controls { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 28px; }
 .render-stage { display: grid; grid-template-columns: 1.6fr 1fr; gap: 26px; align-items: start; }
+
+/* -------------------------------------------------------- safety alert card */
+.safety-alert-card {
+  background: #fff8eb;
+  border: 1px solid var(--amber);
+  padding: 22px 24px;
+  margin-bottom: 28px;
+  box-shadow: 0 4px 20px rgba(228, 180, 90, 0.15);
+}
+.safety-alert-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.safety-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+.safety-alert-head h4 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 600;
+  color: #794d09;
+}
+.safety-alert-head p {
+  margin: 0;
+  font-size: 13px;
+  color: #8c601b;
+}
+.safety-suggestion-body {
+  border-top: 1px dashed #d5b880;
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.safety-diff-row {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 20px;
+}
+.safety-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.safety-col .label {
+  font: 10px/1 var(--mono);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #794d09;
+  font-weight: 600;
+}
+.safe-prompt-preview {
+  max-height: 180px;
+  font-size: 11px;
+}
+.changes-summary-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #e2cfab;
+  padding: 12px 14px;
+}
+.safety-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.btn-accept-safe {
+  background: #2b7a0b !important;
+  border-color: #2b7a0b !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+.btn-accept-safe:hover {
+  background: #215e08 !important;
+}
+.btn-safety-rephrase {
+  border-color: var(--amber) !important;
+  color: #794d09 !important;
+}
+.btn-safety-rephrase:hover {
+  background: var(--amber) !important;
+  color: var(--panel) !important;
+}
 .player { background: var(--panel); display: grid; place-items: center; min-height: 320px; overflow: hidden; }
 .player { position: relative; }
 .player video, .player img { width: 100%; max-height: 70vh; object-fit: contain; display: block; }

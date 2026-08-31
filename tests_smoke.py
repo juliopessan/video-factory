@@ -196,5 +196,15 @@ with client:
     )
     check("extensao alem de 40s e recusada", bad.status_code == 400, bad.text)
 
+    # pipeline com locução em inglês (en-US)
+    pipe_en = client.post(
+        f"/api/projects/{project['id']}/pipelines",
+        json={**context, "voiceover_language": "en-US"},
+    ).json()
+    check("pipeline com en-US configurado", pipe_en["context"]["voiceover_language"] == "en-US")
+    check("prompt em en-US especifica American English",
+          "Voiceover in American English" in pipe_en["storyboard"]["segments"][0]["prompt"],
+          pipe_en["storyboard"]["segments"][0]["prompt"][-100:])
+
 print("\n" + ("FALHAS: " + ", ".join(failures) if failures else "Tudo verde."))
 raise SystemExit(1 if failures else 0)

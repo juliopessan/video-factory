@@ -83,6 +83,12 @@
       <label class="field full"><span>Estética base (inglês)</span><textarea name="aesthetic" rows="2" placeholder="Premium photorealistic footage, ARRI Alexa 35 texture…"></textarea></label>
       <label class="field full"><span>Referência ativa — o que preservar (inglês)</span><textarea name="reference_note" rows="2" placeholder="Preserve the glowing isometric node, its proportions and the exact blue palette."></textarea></label>
       <label class="field"><span>Frame de referência</span><input type="file" id="reference-file" accept="image/*" /></label>
+      <label class="field"><span>Idioma da locução</span>
+        <select name="voiceover_language" id="ctx-lang">
+          <option value="pt-BR" selected>Português (PT-BR)</option>
+          <option value="en-US">English (EN-US)</option>
+        </select>
+      </label>
       <label class="field"><span>Duração</span><select name="duration_seconds" id="ctx-duration"></select></label>
       <label class="field"><span>Proporção</span><select name="aspect_ratio" id="ctx-aspect"></select></label>
       <label class="field"><span>Resolução</span><select name="resolution" id="ctx-resolution"></select></label>
@@ -95,7 +101,7 @@
 
   <!-- passo 2 -->
   <section class="step" id="step-2">
-    <div class="step-head"><span class="num">02</span><h3>Storytelling</h3><p>Cinco atos no padrão de script <strong>intro → hook → meat → cta</strong>: o Ato 1 situa e cria a tensão, os Atos 2 a 4 são a substância e o Ato 5 fecha com a ação. Locução em PT-BR, direção de câmera em inglês.</p></div>
+    <div class="step-head"><span class="num">02</span><h3>Storytelling</h3><p>Cinco atos no padrão de script <strong>intro → hook → meat → cta</strong>: o Ato 1 situa e cria a tensão, os Atos 2 a 4 são a substância e o Ato 5 fecha com a ação. Locução em PT-BR ou EN-US, direção de câmera em inglês.</p></div>
     <div class="empty-slot" id="story-empty">Preencha o contexto para gerar o roteiro.</div>
     <div id="story-body" hidden>
       <div class="story-head" id="story-head"></div>
@@ -128,6 +134,33 @@
     <div class="step-head"><span class="num">04</span><h3>Resultado final</h3><p>A peça 1 é gerada e cada extensão só começa quando a anterior fica pronta. Cada extensão devolve o filme acumulado, então a última peça é o filme inteiro.</p></div>
     <div class="empty-slot" id="render-empty">Nada renderizado ainda.</div>
     <div id="render-body" hidden>
+      <div class="safety-alert-card" id="render-safety-box" hidden>
+        <div class="safety-alert-head">
+          <span class="safety-icon">⚠️</span>
+          <div>
+            <h4 id="safety-title">Prompt bloqueado por termos sensíveis (content_blocked)</h4>
+            <p id="safety-desc">O Google detectou palavras sensíveis na geração do vídeo. Uma versão segura foi gerada automaticamente e pode ser aceita com 1 clique.</p>
+          </div>
+        </div>
+        <div class="safety-suggestion-body">
+          <div class="safety-diff-row">
+            <div class="safety-col">
+              <span class="label">Prompt Seguro Sugerido</span>
+              <div class="prompt-block safe-prompt-preview" id="safety-preview-prompt"></div>
+            </div>
+            <div class="safety-col" id="safety-changes-col">
+              <span class="label">Resumo dos Ajustes</span>
+              <p class="changes-summary-text" id="safety-changes-summary"></p>
+            </div>
+          </div>
+          <div class="safety-actions">
+            <button class="btn-solid btn-accept-safe" id="safety-accept-btn" type="button">✅ Aceitar sugestão e renderizar</button>
+            <button class="btn-outline" id="safety-apply-btn" type="button">📝 Aplicar ao Storyboard</button>
+            <button class="btn-outline" id="safety-dismiss-btn" type="button">Dispensar</button>
+          </div>
+        </div>
+      </div>
+
       <div class="render-controls">
         <label class="field inline"><span>Resolução final</span><select id="render-resolution"></select></label>
         <button class="btn-solid" id="render-start">Renderizar filme</button>

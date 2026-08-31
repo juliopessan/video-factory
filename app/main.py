@@ -71,6 +71,7 @@ class PipelineIn(BaseModel):
     aspect_ratio: str = "16:9"
     resolution: str = "720p"
     duration_seconds: int = 30
+    voiceover_language: str = "pt-BR"
 
 
 class PipelineUpdateIn(BaseModel):
@@ -79,6 +80,13 @@ class PipelineUpdateIn(BaseModel):
 
 
 class PipelineRenderIn(BaseModel):
+    resolution: str | None = None
+
+
+class SegmentActionIn(BaseModel):
+    segment_index: int = 1
+    auto_apply: bool = False
+    retry_render: bool = True
     resolution: str | None = None
 
 
@@ -154,6 +162,7 @@ def read_config() -> dict:
         "capabilities": providers.capabilities(),
         "chaining": pipeline_mod.chaining_strategy(),
         "export_formats": list(postproduction.FORMATS),
+        "voiceover_languages": ["pt-BR", "en-US"],
     }
 
 
@@ -255,6 +264,24 @@ def post_pipeline_prompts(pipeline_id: str) -> dict:
 @app.post("/api/pipelines/{pipeline_id}/render", status_code=202)
 def post_pipeline_render(pipeline_id: str, payload: PipelineRenderIn) -> dict:
     return _guard(pipeline_mod.render, pipeline_id, payload.resolution)
+
+
+@app.post("/api/pipelines/{pipeline_id}/rephrase-segment")
+def post_rephrase_segment(pipeline_id: str, payload: SegmentActionIn) -> dict:
+    return _guard(
+        pipeline_mod.rephrase_segment, pipeline_id, payload.segment_index, payload.auto_apply
+    )
+
+
+@app.post("/api/pipelines/{pipeline_id}/accept-safe-prompt")
+def post_accept_safe_prompt(pipeline_id: str, payload: SegmentActionIn) -> dict:
+    return _guard(
+        pipeline_mod.accept_safe_prompt,
+        pipeline_id,
+        payload.segment_index,
+        payload.retry_render,
+        payload.resolution,
+    )
 
 
 @app.delete("/api/pipelines/{pipeline_id}", status_code=204)

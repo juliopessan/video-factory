@@ -198,6 +198,7 @@ def build_command(
     normalize_audio: bool = True,
     fade: bool = True,
     subtitle_margin: int = SUBTITLE_MARGIN,
+    subtitle_language: str = SUBTITLE_LANGUAGE,
 ) -> list[str]:
     """Monta o argv do FFmpeg. Isolado para poder ser testado sem executar nada."""
     if subtitle_mode not in SUBTITLE_MODES:
@@ -241,7 +242,7 @@ def build_command(
         command += [
             "-map", "0:v:0", "-map", "0:a?", "-map", "1:0",
             "-c:s", "mov_text",
-            "-metadata:s:s:0", f"language={SUBTITLE_LANGUAGE}",
+            "-metadata:s:s:0", f"language={subtitle_language}",
             "-disposition:s:0", "default",
         ]
     dst_str = Path(destination).as_posix() if isinstance(destination, Path) else str(destination)
@@ -423,6 +424,9 @@ def create_exports(
             )
 
     segments = pipeline["storyboard"].get("segments") or []
+    lang = (pipeline.get("context") or {}).get("voiceover_language") or "pt-BR"
+    sub_lang = "eng" if lang == "en-US" else "por"
+
     # o .srt é sempre escrito: serve para o modo soft, para o burn e para download
     subtitle_paths: dict[int, Path] = {}
     for line_chars in {LINE_CHARS_BY_FORMAT.get(label, MAX_LINE_CHARS) for label in formats}:
@@ -454,6 +458,7 @@ def create_exports(
                     "overlay_props": overlay_props(pipeline["context"], overlay) if overlay else None,
                     "overlay_start": 1.5 if overlay == "LowerThird" else 0.0,
                     "subtitles": subtitles if srt_path else "none",
+                    "subtitle_language": sub_lang,
                     "normalize_audio": normalize_audio,
                     "fade": fade,
                     "fit": fit,
@@ -504,6 +509,7 @@ def run_export(export_id: str) -> None:
                 if params.get("overlay") == "LowerThird"
                 else SUBTITLE_MARGIN
             ),
+            subtitle_language=params.get("subtitle_language", SUBTITLE_LANGUAGE),
         )
         result = subprocess.run(command, capture_output=True, text=True, timeout=3600)
         if result.returncode != 0 or not destination.exists():

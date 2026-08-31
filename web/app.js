@@ -322,10 +322,14 @@ function renderStory() {
   $("#story-body").hidden = !pipeline;
   if (!pipeline) return;
   const story = pipeline.story;
+  const lang = pipeline.context?.voiceover_language || "pt-BR";
+  const voLabel = lang === "en-US" ? "Locução (EN-US)" : "Locução (PT-BR)";
+
   $("#story-head").innerHTML = `
     <h4>${escapeHtml(story.title || "")}</h4>
     <p>${escapeHtml(story.logline || "")}</p>
-    <span class="pill">${story.source === "model" ? "gerado pelo modelo" : "template local"}</span>`;
+    <span class="pill">${story.source === "model" ? "gerado pelo modelo" : "template local"}</span>
+    <span class="pill">${lang === "en-US" ? "EN-US" : "PT-BR"}</span>`;
   $("#acts").innerHTML = (story.acts || [])
     .map(
       (act, index) => `
@@ -333,7 +337,7 @@ function renderStory() {
         <div class="act-id">Ato ${act.n} · ${escapeHtml(act.timecode || "")}
           <b>${escapeHtml(act.name || "")}</b>${escapeHtml(act.beat || "")}
           <span class="beat">${escapeHtml(act.script_beat || "")}</span></div>
-        <div><span class="label">Locução (PT-BR)</span>
+        <div><span class="label">${voLabel}</span>
           <textarea rows="4" data-field="vo">${escapeHtml(act.vo || "")}</textarea></div>
         <div class="en"><span class="label">Ação e câmera (EN)</span>
           <textarea rows="4" data-field="action_camera">${escapeHtml(act.action_camera || "")}</textarea></div>
@@ -360,6 +364,8 @@ function renderBoard() {
   $("#board-empty").hidden = !!board?.segments?.length;
   $("#board-body").hidden = !board?.segments?.length;
   if (!board?.segments?.length) return;
+  const lang = pipeline.context?.voiceover_language || "pt-BR";
+  const voLabel = lang === "en-US" ? "Locução (EN-US)" : "Locução (PT-BR)";
 
   $("#board-meta").innerHTML = [
     ["Scene context", board.scene_context],
@@ -385,7 +391,7 @@ function renderBoard() {
         </header>
         <div class="body">
           <div class="col">
-            <div><span class="label" style="font:10px/1 var(--mono);letter-spacing:.14em;color:var(--ink-40);text-transform:uppercase">Locução</span>
+            <div><span class="label" style="font:10px/1 var(--mono);letter-spacing:.14em;color:var(--ink-40);text-transform:uppercase">${voLabel}</span>
               <textarea rows="3" data-field="vo">${escapeHtml(segment.vo || "")}</textarea></div>
             <div><span class="label" style="font:10px/1 var(--mono);letter-spacing:.14em;color:var(--ink-40);text-transform:uppercase">Primeiro frame (EN)</span>
               <textarea rows="3" data-field="first_frame">${escapeHtml(segment.first_frame || "")}</textarea></div>
@@ -396,7 +402,20 @@ function renderBoard() {
           </div>
           <div class="col">
             <div class="prompt-block">${highlightPrompt(segment.prompt || "")}</div>
-            <button class="btn-mini" data-copy="${index}">copiar prompt</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+              <button class="btn-mini" data-copy="${index}">copiar prompt</button>
+              <button class="btn-mini btn-safety-rephrase" data-rephrase="${index}">🛡️ Suavizar prompt (Safe AI)</button>
+            </div>
+            ${
+              segment.safe_suggestion
+                ? `<div class="note" style="margin-top:8px;font-size:12px;background:#fff8eb;border:1px solid var(--amber);padding:8px 10px">
+                    <b>Sugestão Segura disponível:</b> ${escapeHtml(segment.safe_suggestion.changes_summary || "")}
+                    <div style="margin-top:6px;display:flex;gap:6px">
+                      <button class="btn-mini btn-accept-safe" data-apply-suggestion="${index}">Aplicar sugestão</button>
+                    </div>
+                  </div>`
+                : ""
+            }
           </div>
         </div>
       </article>`
@@ -462,6 +481,26 @@ function renderRender() {
   const nextBtn = $("#render-next");
   if (nextBtn) {
     nextBtn.style.display = (completedRenders.length > 0 && !busy) ? "inline-block" : "none";
+  }
+
+  // Tratamento e exibição de sugestão de segurança (content_blocked)
+  const safetyBox = $("#render-safety-box");
+  const segments = pipeline.storyboard?.segments || [];
+  const blockedSegmentIdx = segments.findIndex((s) => s.safe_suggestion);
+  const blockedSegment = blockedSegmentIdx >= 0 ? segments[blockedSegmentIdx] : null;
+
+  if (safetyBox) {
+    if (blockedSegment && blockedSegment.safe_suggestion) {
+      safetyBox.hidden = false;
+      const segNum = blockedSegment.index || (blockedSegmentIdx + 1);
+      safetyBox.dataset.segmentIndex = String(segNum);
+      $("#safety-title").textContent = `Peça ${segNum}: Prompt ajustado para conformidade com a política de IA do Google`;
+      $("#safety-preview-prompt").innerHTML = highlightPrompt(blockedSegment.safe_suggestion.safe_prompt || "");
+      $("#safety-changes-summary").textContent =
+        blockedSegment.safe_suggestion.changes_summary || "Substituição de termos sensíveis por linguagem cinematográfica segura.";
+    } else {
+      safetyBox.hidden = true;
+    }
   }
 
   $("#render-note").textContent =
@@ -833,12 +872,90 @@ function bindEvents() {
     renderPipeline();
   });
   $("#board-next").addEventListener("click", () => $("#step-4").scrollIntoView({ behavior: "smooth" }));
-  $("#segments").addEventListener("click", (event) => {
-    const index = event.target.dataset.copy;
-    if (index === undefined) return;
-    navigator.clipboard?.writeText(state.pipeline.storyboard.segments[Number(index)].prompt || "");
-    event.target.textContent = "copiado";
-    setTimeout(() => (event.target.textContent = "copiar prompt"), 1500);
+  $("#segments").addEventListener("click", async (event) => {
+    const copyIndex = event.target.dataset.copy;
+    if (copyIndex !== undefined) {
+      navigator.clipboard?.writeText(state.pipeline.storyboard.segments[Number(copyIndex)].prompt || "");
+      event.target.textContent = "copiado";
+      setTimeout(() => (event.target.textContent = "copiar prompt"), 1500);
+      return;
+    }
+    const applySugIndex = event.target.dataset.applySuggestion;
+    if (applySugIndex !== undefined) {
+      const idx = Number(applySugIndex);
+      try {
+        state.pipeline = await api.post(`/api/pipelines/${state.pipeline.id}/accept-safe-prompt`, {
+          segment_index: idx + 1,
+          retry_render: false,
+        });
+        renderPipeline();
+      } catch (err) {
+        alert("Erro ao aplicar sugestão: " + err.message);
+      }
+      return;
+    }
+    const rephraseIndex = event.target.dataset.rephrase;
+    if (rephraseIndex !== undefined) {
+      const btn = event.target;
+      const idx = Number(rephraseIndex);
+      btn.disabled = true;
+      btn.textContent = "Suavizando...";
+      try {
+        state.pipeline = await api.post(`/api/pipelines/${state.pipeline.id}/rephrase-segment`, {
+          segment_index: idx + 1,
+          auto_apply: true,
+        });
+        renderPipeline();
+      } catch (err) {
+        alert("Erro ao suavizar prompt: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "🛡️ Suavizar prompt (Safe AI)";
+      }
+    }
+  });
+
+  $("#safety-accept-btn")?.addEventListener("click", async () => {
+    const safetyBox = $("#render-safety-box");
+    const segmentIndex = Number(safetyBox.dataset.segmentIndex || 1);
+    const btn = $("#safety-accept-btn");
+    btn.disabled = true;
+    btn.textContent = "Aplicando e renderizando...";
+    try {
+      await api.post(`/api/pipelines/${state.pipeline.id}/accept-safe-prompt`, {
+        segment_index: segmentIndex,
+        retry_render: true,
+        resolution: $("#render-resolution").value,
+      });
+      safetyBox.hidden = true;
+      await loadPipeline(state.pipeline.id);
+    } catch (err) {
+      alert("Erro ao aceitar sugestão: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "✅ Aceitar sugestão e renderizar";
+    }
+  });
+
+  $("#safety-apply-btn")?.addEventListener("click", async () => {
+    const safetyBox = $("#render-safety-box");
+    const segmentIndex = Number(safetyBox.dataset.segmentIndex || 1);
+    try {
+      state.pipeline = await api.post(`/api/pipelines/${state.pipeline.id}/accept-safe-prompt`, {
+        segment_index: segmentIndex,
+        retry_render: false,
+      });
+      safetyBox.hidden = true;
+      renderPipeline();
+      $("#step-3").scrollIntoView({ behavior: "smooth" });
+    } catch (err) {
+      alert("Erro ao aplicar ao storyboard: " + err.message);
+    }
+  });
+
+  $("#safety-dismiss-btn")?.addEventListener("click", () => {
+    const safetyBox = $("#render-safety-box");
+    if (safetyBox) safetyBox.hidden = true;
   });
 
   $("#render-next")?.addEventListener("click", () => $("#step-5").scrollIntoView({ behavior: "smooth" }));

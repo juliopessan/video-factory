@@ -48,7 +48,37 @@ DEFAULT_AESTHETIC = (
     "tech-commercial lighting, sharp art direction, subtle natural grain, high dynamic range."
 )
 
-STORY_SYSTEM = """Voce e diretor criativo de comerciais enterprise premium.
+def _story_system(lang: str = "pt-BR") -> str:
+    if lang == "en-US":
+        return """You are a creative director of premium enterprise commercials.
+Write a 5-Act screenplay for a short commercial in the executive format:
+Act 1 The Hook (risk of status quo), Act 2 The Real Problem, Act 3 The Turning Point,
+Act 4 Business Value, Act 5 Call to Action.
+
+SCRIPT PATTERN — intro, hook, meat, cta. Every script follows this order, and each
+act declares the beat it carries in `script_beat`:
+- intro: the first sentence of Act 1. Sets who is speaking, about what and where, in one line.
+  No greeting, no "in this video", no preamble.
+- hook: still in Act 1. The tension that holds the viewer — the concrete risk of
+  continuing as is. It's the sentence that prevents dropping off.
+- meat: Acts 2, 3 and 4. The substance: real cost of the current way, change of
+  approach and the value produced. Concrete, no empty buzzwords.
+- cta: Act 5. A clear, short action in the imperative or as a direct invitation.
+
+Write Act 1 as two sentences in that order: first the intro, then the hook.
+
+Rules:
+- The voiceover (`vo`) is ALWAYS in American English, in the first-person plural (we/our), short
+  and speakable within the act's duration (approx. 2.5 words per second).
+- `action_camera` is ALWAYS in English, written as cinematography direction: shot type,
+  lens/FOV in degrees, camera height and movement, character actions.
+  Use safe, motivated visual cuts (DIRECT CUT, MATCH CUT, DYNAMIC PAN CUT) and a new visual idea per act.
+- Do not use violent, abusive or policy-triggering terms (avoid 'whip', 'burst', 'shoot', 'weapon').
+- No subtitles in video prompt, no third-party brands or copyrighted music.
+- Never invent numbers, clients or results not present in the context.
+- `script_beat` is one of: intro, hook, meat, cta. Act 1 uses "hook", Acts 2 to 4 use "meat", Act 5 uses "cta"."""
+
+    return """Voce e diretor criativo de comerciais enterprise premium.
 Escreva um roteiro em 5 Atos para um filme publicitario curto, no formato executivo:
 Ato 1 O Gancho (risco do status quo), Ato 2 O Problema Real, Ato 3 O Ponto de Virada,
 Ato 4 O Valor de Negocio, Ato 5 Call to Action.
@@ -70,11 +100,14 @@ Regras:
   falavel dentro do tempo do ato (aproximadamente 2,5 palavras por segundo).
 - `action_camera` e SEMPRE em ingles, escrito como direcao de fotografia: tipo de corte,
   lente/campo de visao em graus, altura e movimento de camera, acao dos personagens.
-  Use cortes motivados (HARD CUT, MATCH CUT, WHIP CUT) e uma ideia visual nova por ato.
+  Use cortes motivados e seguros (DIRECT CUT, MATCH CUT, DYNAMIC PAN CUT) e uma ideia visual nova por ato.
+- Nao use termos agressivos ou ambiguos (evite 'whip', 'burst', 'shoot', 'weapon').
 - Nada de subtitulos, marcas de terceiros ou musica licenciada.
 - Nunca invente numeros, clientes ou resultados que nao estejam no contexto.
 - `script_beat` e um de: intro, hook, meat, cta. O Ato 1 usa "hook" (ele abre com
   a intro e emenda no hook), os Atos 2 a 4 usam "meat" e o Ato 5 usa "cta"."""
+
+STORY_SYSTEM = _story_system("pt-BR")
 
 STORY_SCHEMA = {
     "type": "object",
@@ -107,7 +140,21 @@ STORY_SCHEMA = {
     "required": ["title", "logline", "aesthetic_base", "acts", "direction_notes"],
 }
 
-STORYBOARD_SYSTEM = """Voce transforma um roteiro de 5 Atos em um storyboard de producao
+def _storyboard_system(lang: str = "pt-BR") -> str:
+    if lang == "en-US":
+        return """You transform a 5-Act screenplay into a production storyboard for a generative video model.
+Divide the film into 10-second segments.
+
+For each segment return:
+- `script_beats`: which beats of the intro/hook/meat/cta pattern the segment covers, in order (the first segment begins with intro and hook);
+- `vo`: the voiceover in American English that plays during this segment (combine covered acts);
+- `shot_sequence`: in English, the shot sequence with motivated cuts, lens FOV in degrees, camera movement, actions;
+- `first_frame`: in English, what is already visible in the first frame (no empty establishing shot);
+- `continuity`: in English, what must remain identical to the previous segment (character identities, wardrobe, palette, hero object).
+
+Segments 2 onwards continue the SAME shot and begin with "Continue the video."."""
+
+    return """Voce transforma um roteiro de 5 Atos em um storyboard de producao
 para um modelo de video generativo. Divida o filme em segmentos de 10 segundos.
 
 Para cada segmento devolva:
@@ -122,6 +169,8 @@ Para cada segmento devolva:
   (identidade dos personagens, figurino, paleta, objeto-heroi).
 
 Os segmentos 2 em diante continuam a MESMA tomada e comecam com "Continue the video."."""
+
+STORYBOARD_SYSTEM = _storyboard_system("pt-BR")
 
 STORYBOARD_SCHEMA = {
     "type": "object",
@@ -164,6 +213,9 @@ def normalize_context(raw: dict) -> dict:
     duration = int(raw.get("duration_seconds") or 30)
     duration = max(SEGMENT_SECONDS, min(duration, MAX_CUMULATIVE_SECONDS))
     duration = int(math.ceil(duration / SEGMENT_SECONDS) * SEGMENT_SECONDS)
+    lang = (raw.get("voiceover_language") or "pt-BR").strip()
+    if lang not in ("pt-BR", "en-US"):
+        lang = "pt-BR"
     return {
         "brand": (raw.get("brand") or "").strip(),
         "product": (raw.get("product") or "").strip(),
@@ -179,6 +231,7 @@ def normalize_context(raw: dict) -> dict:
         "aspect_ratio": raw.get("aspect_ratio") or "16:9",
         "resolution": raw.get("resolution") or "720p",
         "duration_seconds": duration,
+        "voiceover_language": lang,
     }
 
 
@@ -210,15 +263,18 @@ def _context_brief(context: dict) -> str:
 def build_story(context: dict) -> dict:
     """Passo 2. Cai no fallback deterministico se nao houver modelo de texto."""
     total = context["duration_seconds"]
+    lang = context.get("voiceover_language") or "pt-BR"
     if textgen.available():
+        lang_instruction = "American English" if lang == "en-US" else "Brazilian Portuguese (PT-BR)"
         prompt = (
             f"Contexto do filme (JSON):\n{_context_brief(context)}\n\n"
             f"Duracao total: {total} segundos, dividida entre os 5 atos de forma proporcional "
             "ao peso narrativo (gancho curto, virada e valor mais longos). "
+            f"Voiceover language MUST be in {lang_instruction}. "
             "Preencha o timecode de cada ato em mm:ss–mm:ss."
         )
         try:
-            story = textgen.generate_json(STORY_SYSTEM, prompt, STORY_SCHEMA)
+            story = textgen.generate_json(_story_system(lang), prompt, STORY_SCHEMA)
             story["source"] = "model"
             return story
         except textgen.TextGenError as exc:
@@ -233,27 +289,56 @@ def build_story(context: dict) -> dict:
 def _fallback_story(context: dict) -> dict:
     total = context["duration_seconds"]
     weights = [0.17, 0.23, 0.20, 0.23, 0.17]
-    brand = context["brand"] or "a companhia"
-    problem = context["problem"] or "a nossa própria fundação"
-    turning = context["turning_point"] or "mapeamos tudo de forma determinística antes de construir"
+    lang = context.get("voiceover_language") or "pt-BR"
     produto = context["product"]
-    publico = context["audience"] or "quem decide"
-    lines = [
-        # Ato 1 = intro + hook, nessa ordem
-        f"{brand} constrói {produto} para {publico}. "
-        f"E, neste exato momento, a maior barreira para o crescimento não é o mercado: é {problem}.",
-        "Resolver isso do jeito manual consome meses — e decisões baseadas em suposição estouram prazo e orçamento.",
-        f"Então mudamos a abordagem: {turning}.",
-        f"O resultado? {context['value']}.",
-        context["cta"] or "Não é apenas uma mudança técnica. É velocidade de mercado. Vamos começar.",
-    ]
+
+    if lang == "en-US":
+        brand = context["brand"] or "the company"
+        problem = context["problem"] or "our own foundational complexity"
+        turning = context["turning_point"] or "mapping everything deterministically before building"
+        publico = context["audience"] or "decision makers"
+        lines = [
+            f"{brand} builds {produto} for {publico}. "
+            f"And right now, the biggest barrier to growth isn't the market: it's {problem}.",
+            "Solving this manually consumes months — and decisions based on assumptions blow timelines and budgets.",
+            f"So we changed the approach: {turning}.",
+            f"The result? {context['value']}.",
+            context["cta"] or "It's not just a technical change. It's market velocity. Let's begin.",
+        ]
+        direction_notes = {
+            "music": "Tense and dense bass in Acts 1 and 2; the track opens clean and inspiring in Act 3 and "
+                     "culminates in an activation chime in Act 5.",
+            "pacing": "Energetic rhythm with motivated cuts; only the final packshot holds longer.",
+        }
+        logline = f"A {total}s film about {context['product']} for {context['audience'] or 'business decision makers'}."
+    else:
+        brand = context["brand"] or "a companhia"
+        problem = context["problem"] or "a nossa própria fundação"
+        turning = context["turning_point"] or "mapeamos tudo de forma determinística antes de construir"
+        publico = context["audience"] or "quem decide"
+        lines = [
+            # Ato 1 = intro + hook, nessa ordem
+            f"{brand} constrói {produto} para {publico}. "
+            f"E, neste exato momento, a maior barreira para o crescimento não é o mercado: é {problem}.",
+            "Resolver isso do jeito manual consome meses — e decisões baseadas em suposição estouram prazo e orçamento.",
+            f"Então mudamos a abordagem: {turning}.",
+            f"O resultado? {context['value']}.",
+            context["cta"] or "Não é apenas uma mudança técnica. É velocidade de mercado. Vamos começar.",
+        ]
+        direction_notes = {
+            "music": "Baixo tenso e denso nos Atos 1 e 2; a trilha abre limpa e inspiradora no Ato 3 e "
+                     "culmina em um chime de ativação no Ato 5.",
+            "pacing": "Ritmo energético com cortes motivados; apenas o packshot final segura mais tempo.",
+        }
+        logline = f"Um filme de {total}s sobre {context['product']} para {context['audience'] or 'decisores de negócio'}."
+
     shots = [
         "OPENING SHOT — 107° wide rectilinear view, camera 60 cm above a glossy dark glass table. "
         "The hero concept looms large in the immediate foreground while the lead specialist leans "
-        "toward the lens from midground and points directly at the problem. Rapid tabletop push-in.",
-        "WHIP CUT — a glowing portal fills the frame and the camera bursts through into the legacy "
+        "toward the lens from midground and indicates the challenge. Rapid tabletop push-in.",
+        "DYNAMIC PAN CUT — a glowing portal fills the frame and the camera glides forward into the legacy "
         "environment. 84° classic wide, waist height, stabilized dolly moving backward as the team "
-        "strides toward the lens carrying the old, heavy artifact.",
+        "strides toward the lens carrying legacy equipment.",
         "MATCH CUT to OVERHEAD SHOT — perfect top-down view of the team in a clean radial composition "
         "around a giant circular glowing table, passing work packets clockwise. Rapid 18° macro inserts "
         "of the new structure forming with precise rack focus.",
@@ -261,7 +346,7 @@ def _fallback_story(context: dict) -> dict:
         "diamond around the central pedestal; the camera cranes rapidly upward between them as they "
         "turn and look into the lens, expressions shifting into confident smiles.",
         "FINAL GROUP SHOT to PACKSHOT — fast curved dolly around the group for a synchronized swipe, "
-        "then HARD CUT to a pristine studio background where the hero object stands on a mirror-polished "
+        "then DIRECT CUT to a pristine studio background where the hero object stands on a mirror-polished "
         "pedestal. Slow 29° short-telephoto push, premium parallax, razor-sharp.",
     ]
     acts, cursor = [], 0
@@ -283,14 +368,10 @@ def _fallback_story(context: dict) -> dict:
         cursor += seconds
     return {
         "title": f"{brand}: {context['product']}"[:120],
-        "logline": f"Um filme de {total}s sobre {context['product']} para {context['audience'] or 'decisores de negócio'}.",
+        "logline": logline,
         "aesthetic_base": context["aesthetic"],
         "acts": acts,
-        "direction_notes": {
-            "music": "Baixo tenso e denso nos Atos 1 e 2; a trilha abre limpa e inspiradora no Ato 3 e "
-                     "culmina em um chime de ativação no Ato 5.",
-            "pacing": "Ritmo energético com cortes motivados; apenas o packshot final segura mais tempo.",
-        },
+        "direction_notes": direction_notes,
         "source": "template",
     }
 
@@ -301,14 +382,17 @@ def _fallback_story(context: dict) -> dict:
 def build_storyboard(context: dict, story: dict) -> dict:
     """Passo 3. Agrupa os atos em segmentos de 10s e monta o prompt de cada peca."""
     count = _segment_count(context)
+    lang = context.get("voiceover_language") or "pt-BR"
     if textgen.available():
+        lang_instruction = "American English" if lang == "en-US" else "Brazilian Portuguese"
         prompt = (
             f"Contexto (JSON):\n{_context_brief(context)}\n\n"
             f"Roteiro em 5 atos (JSON):\n{json.dumps(story, ensure_ascii=False)}\n\n"
+            f"Voiceover language is in {lang_instruction}. "
             f"Monte exatamente {count} segmentos de {SEGMENT_SECONDS} segundos, cobrindo os 5 atos em ordem."
         )
         try:
-            board = textgen.generate_json(STORYBOARD_SYSTEM, prompt, STORYBOARD_SCHEMA)
+            board = textgen.generate_json(_storyboard_system(lang), prompt, STORYBOARD_SCHEMA)
             board["source"] = "model"
         except textgen.TextGenError as exc:
             board = _fallback_storyboard(context, story, count)
@@ -391,8 +475,8 @@ def _fallback_storyboard(context: dict, story: dict, count: int) -> dict:
             "texture and believable professional synergy. Faces remain anatomically stable in wide shots."
         ),
         "format_mode": (
-            "A controlled multi-shot commercial with precisely motivated HARD CUTS, MATCH CUTS and WHIP "
-            "CUTS. Every shot introduces a new visual idea while preserving character identities, wardrobe "
+            "A controlled multi-shot commercial with precisely motivated DIRECT CUTS, MATCH CUTS and DYNAMIC "
+            "PAN CUTS. Every shot introduces a new visual idea while preserving character identities, wardrobe "
             "continuity and the same color world."
         ),
         "lighting": context["aesthetic"],
@@ -444,8 +528,10 @@ def render_prompt(context: dict, story: dict, board: dict, segment: dict, index:
         blocks.append(f"PHYSICS\n{board.get('physics', '')}")
     voice = segment.get("vo", "").strip()
     audio = board.get("audio", "")
+    lang = context.get("voiceover_language") or "pt-BR"
     if voice:
-        audio = f'{audio} Voiceover in Brazilian Portuguese, confident executive tone: "{voice}"'
+        lang_desc = "American English" if lang == "en-US" else "Brazilian Portuguese"
+        audio = f'{audio} Voiceover in {lang_desc}, confident executive tone: "{voice}"'
     blocks.append(f"AUDIO\n{audio}")
     return "\n\n".join(b.strip() for b in blocks if b and b.strip())
 
@@ -642,15 +728,37 @@ def _run_render(pipeline_id: str, resolution: str) -> None:
             studio.run_generation(generation["id"])
             done = studio.get_generation(generation["id"])
             if done["status"] != "completed":
-                db.update(
-                    "pipelines",
-                    pipeline_id,
-                    {
-                        "status": "failed",
-                        "error": f"Peca {index + 1}: {done.get('error') or 'falha desconhecida'}",
-                        "updated_at": db.now(),
-                    },
+                err_text = str(done.get("error") or "falha desconhecida")
+                is_blocked = any(
+                    w in err_text.lower()
+                    for w in ("content_blocked", "input blocked", "sensitive words", "prohibited use", "safety")
                 )
+                if is_blocked:
+                    suggestion = textgen.rephrase_blocked_prompt(segment.get("prompt") or "", segment, err_text)
+                    segment["safe_suggestion"] = suggestion
+                    db.update(
+                        "pipelines",
+                        pipeline_id,
+                        {
+                            "status": "failed",
+                            "storyboard": json.dumps(pipeline["storyboard"], ensure_ascii=False),
+                            "error": (
+                                f"Peça {index + 1}: Prompt bloqueado pelas diretrizes de segurança do Google "
+                                "(content_blocked). Sugestão de prompt seguro gerada automaticamente."
+                            ),
+                            "updated_at": db.now(),
+                        },
+                    )
+                else:
+                    db.update(
+                        "pipelines",
+                        pipeline_id,
+                        {
+                            "status": "failed",
+                            "error": f"Peça {index + 1}: {err_text}",
+                            "updated_at": db.now(),
+                        },
+                    )
                 return
             parent_id = generation["id"]
         db.update(
@@ -664,6 +772,56 @@ def _run_render(pipeline_id: str, resolution: str) -> None:
             pipeline_id,
             {"status": "failed", "error": f"{type(exc).__name__}: {exc}", "updated_at": db.now()},
         )
+
+
+def rephrase_segment(pipeline_id: str, segment_index: int, auto_apply: bool = False) -> dict:
+    """Gera sugestão de prompt seguro para a peça e opcionalmente aplica."""
+    pipeline = get_pipeline(pipeline_id)
+    board = pipeline["storyboard"]
+    segments = board.get("segments") or []
+    if not (1 <= segment_index <= len(segments)):
+        raise studio.StudioError(f"Índice de peça inválido: {segment_index}.")
+    idx = segment_index - 1
+    segment = segments[idx]
+    suggestion = textgen.rephrase_blocked_prompt(
+        segment.get("prompt") or "", segment, pipeline.get("error")
+    )
+    segment["safe_suggestion"] = suggestion
+    if auto_apply:
+        return accept_safe_prompt(pipeline_id, segment_index, retry_render=False)
+    return update_pipeline(pipeline_id, storyboard=board)
+
+
+def accept_safe_prompt(
+    pipeline_id: str,
+    segment_index: int,
+    retry_render: bool = False,
+    resolution: str | None = None,
+) -> dict:
+    """Aplica a sugestão segura ao storyboard e opcionalmente reinicia o render."""
+    pipeline = get_pipeline(pipeline_id)
+    board = pipeline["storyboard"]
+    segments = board.get("segments") or []
+    if not (1 <= segment_index <= len(segments)):
+        raise studio.StudioError(f"Índice de peça inválido: {segment_index}.")
+    idx = segment_index - 1
+    segment = segments[idx]
+    suggestion = segment.get("safe_suggestion") or textgen.rephrase_blocked_prompt(
+        segment.get("prompt") or "", segment
+    )
+    if suggestion.get("safe_prompt"):
+        segment["prompt"] = suggestion["safe_prompt"]
+    if suggestion.get("sanitized_shot_sequence"):
+        segment["shot_sequence"] = suggestion["sanitized_shot_sequence"]
+    if suggestion.get("sanitized_vo"):
+        segment["vo"] = suggestion["sanitized_vo"]
+    segment.pop("safe_suggestion", None)
+    db.update("pipelines", pipeline_id, {"error": None, "updated_at": db.now()})
+    updated = update_pipeline(pipeline_id, storyboard=board)
+    if retry_render:
+        render(pipeline_id, resolution=resolution)
+        return get_pipeline(pipeline_id)
+    return updated
 
 
 def delete_pipeline(pipeline_id: str) -> None:
