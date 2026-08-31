@@ -85,6 +85,16 @@ with client:
     check("pecas seguintes estendem", [s["mode"] for s in segments[1:]] == ["extend", "extend"])
     check("prompt tem blocos do template", "ACTION AND CAMERA SEQUENCE" in segments[0]["prompt"])
     check("continuacao explicita", segments[1]["prompt"].startswith("CONTINUATION"))
+    # o modelo já queimou "DIRECT CUT" e "50mm 40°" dentro do quadro: toda peça
+    # precisa carregar a restrição, e antes da direção técnica
+    check("toda peça proíbe texto na tela",
+          all("ON-SCREEN TEXT" in s["prompt"] for s in segments))
+    check("a restrição vem antes da direção de câmera",
+          all(s["prompt"].index("ON-SCREEN TEXT") < s["prompt"].index("ACTION AND CAMERA SEQUENCE")
+              for s in segments))
+    check("a restrição nomeia a notação que vazava",
+          all(t in segments[0]["prompt"] for t in ("HARD CUT", "50mm", "84°", "timecodes")),
+          segments[0]["prompt"][segments[0]["prompt"].index("ON-SCREEN TEXT"):][:200])
 
     # editar a locução de um ato precisa chegar na peça e no prompt
     story_editada = json.loads(json.dumps(pipeline["story"]))

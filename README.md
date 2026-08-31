@@ -176,6 +176,10 @@ só o que mostrar, mas o que a cena precisa provocar.
 **3. Storyboard.** Os atos viram peças de 10s. A primeira abre a cena; as seguintes continuam a
 mesma tomada. Cada peça compila seu prompt no template de produção.
 
+Todo prompt carrega um bloco `ON-SCREEN TEXT` antes da direção técnica, dizendo que a notação de
+câmera é instrução de fotografia e não texto para desenhar. Sem ele o modelo já queimou
+"DIRECT CUT" e "50mm 40°" no topo do quadro, como legenda.
+
 **4. Resultado final.** A peça 1 é gerada e cada peça seguinte só entra na fila quando a anterior
 termina — a continuação depende do resultado da anterior, seja pelo `interaction_id` (Omni) ou
 pelo último frame (Sora-2). Com o Omni, cada extensão devolve o filme **acumulado**: a última peça

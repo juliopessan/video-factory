@@ -44,6 +44,20 @@ ACT_BLUEPRINT = [
 # O Ato 1 abre com a intro e vira hook em seguida: é um ato, dois beats.
 ACT_OPENING_BEATS = {1: ("intro", "hook")}
 
+# O modelo já queimou no quadro a direção de câmera do próprio prompt ("DIRECT
+# CUT", "50mm 40°" aparecendo como legenda no topo da imagem). O bloco abaixo
+# entra em toda peça, antes da direção técnica, dizendo explicitamente que aquilo
+# é instrução de fotografia e não texto para desenhar.
+NO_ONSCREEN_TEXT = (
+    "ON-SCREEN TEXT\n"
+    "Render no text overlays of any kind. The camera and lens notation in this prompt "
+    "(cut types like HARD CUT or DIRECT CUT, focal lengths like 50mm, fields of view like "
+    "84°, timecodes, shot numbers) is direction for how to film — never something to draw "
+    "inside the frame. No captions, no subtitles, no watermarks, no lower thirds, no "
+    "burned-in titles. Text may appear only when it belongs to the scene itself: signage, "
+    "screen interfaces, printed material, product branding."
+)
+
 DEFAULT_AESTHETIC = (
     "Premium photorealistic footage, ARRI Alexa 35 texture, high-end corporate "
     "tech-commercial lighting, sharp art direction, subtle natural grain, high dynamic range."
@@ -104,6 +118,8 @@ Regras:
   Use cortes motivados e seguros (DIRECT CUT, MATCH CUT, DYNAMIC PAN CUT) e uma ideia visual nova por ato.
 - Nao use termos agressivos ou ambiguos (evite 'whip', 'burst', 'shoot', 'weapon').
 - Nada de subtitulos, marcas de terceiros ou musica licenciada.
+- `action_camera` e instrucao de fotografia, nao texto para aparecer na tela. Nunca peca
+  para escrever no quadro o tipo de corte, a lente, o campo de visao ou o timecode.
 - Nunca invente numeros, clientes ou resultados que nao estejam no contexto.
 - `script_beat` e um de: intro, hook, meat, cta. O Ato 1 usa "hook" (ele abre com
   a intro e emenda no hook), os Atos 2 a 4 usam "meat" e o Ato 5 usa "cta"."""
@@ -163,7 +179,8 @@ Para cada segmento devolva:
   ordem em que aparecem (o primeiro segmento comeca com intro e hook);
 - `vo`: a locucao em portugues que roda naquele trecho (junte os atos cobertos);
 - `shot_sequence`: em ingles, a sequencia de planos com cortes motivados, campo de visao
-  em graus, altura e movimento de camera, acao dos personagens e transicoes;
+  em graus, altura e movimento de camera, acao dos personagens e transicoes. E direcao de
+  fotografia: nada disso deve ser escrito dentro do quadro;
 - `first_frame`: em ingles, o que ja esta visivel no primeiro frame (sem plano de
   estabelecimento vazio, sem revelacao atrasada do conceito);
 - `continuity`: em ingles, o que precisa permanecer identico ao segmento anterior
@@ -514,6 +531,8 @@ def render_prompt(context: dict, story: dict, board: dict, segment: dict, index:
             "CONTINUATION\nContinue the video from the previous shot. "
             + segment.get("continuity", "")
         )
+
+    blocks.append(NO_ONSCREEN_TEXT)
 
     beats = segment.get("script_beats") or []
     if beats:
