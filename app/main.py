@@ -1,6 +1,7 @@
 """API local do Video Factory (FastAPI) + entrega da interface web."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -97,6 +98,19 @@ class DraftBatchIn(BaseModel):
     resolution: str = "360p"
 
 
+class ConfigIn(BaseModel):
+    gemini_api_key: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    azure_endpoint: str | None = None
+    azure_api_key: str | None = None
+    azure_deployment: str | None = None
+    azure_api_version: str | None = None
+    azure_api_style: str | None = None
+    ffmpeg: str | None = None
+    ffprobe: str | None = None
+
+
 def _guard(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
@@ -109,10 +123,19 @@ def _guard(fn, *args, **kwargs):
 
 @app.get("/api/config")
 def read_config() -> dict:
+    from . import config as config_mod
     return {
-        "provider": settings.effective_provider,
-        "model": settings.model,
-        "has_api_key": bool(settings.api_key),
+        "provider": config_mod.settings.effective_provider,
+        "configured_provider": config_mod.settings.provider,
+        "model": config_mod.settings.model,
+        "has_api_key": bool(config_mod.settings.api_key),
+        "has_azure": bool(config_mod.settings.has_azure),
+        "azure_endpoint": config_mod.settings.azure_endpoint,
+        "azure_deployment": os.environ.get("VF_AZURE_DEPLOYMENT", "sora-2"),
+        "azure_api_version": os.environ.get("VF_AZURE_API_VERSION", "preview"),
+        "azure_api_style": os.environ.get("VF_AZURE_API_STYLE", "videos"),
+        "ffmpeg_path": postproduction.FFMPEG,
+        "ffprobe_path": postproduction.FFPROBE,
         "modes": list(studio.MODES),
         "resolutions": list(RESOLUTIONS),
         "aspect_ratios": list(ASPECT_RATIOS),
@@ -132,6 +155,16 @@ def read_config() -> dict:
         "chaining": pipeline_mod.chaining_strategy(),
         "export_formats": list(postproduction.FORMATS),
     }
+
+
+@app.post("/api/config")
+def save_config(payload: ConfigIn) -> dict:
+    from . import config as config_mod
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    config_mod.update_settings(updates)
+    providers._cache.clear()
+    postproduction.available()
+    return read_config()
 
 
 @app.get("/api/projects")

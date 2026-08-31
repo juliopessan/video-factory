@@ -61,6 +61,129 @@ function showTab(name) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+/* ----------------------------------------------------------- modal config */
+
+function openConfigModal() {
+  const modal = $("#config-modal");
+  if (!modal) return;
+  const cfg = state.config || {};
+
+  const providerSelect = $("#cfg-provider");
+  if (providerSelect) providerSelect.value = cfg.configured_provider || cfg.provider || "auto";
+
+  const geminiInput = $("#cfg-gemini-key");
+  if (geminiInput) geminiInput.value = "";
+
+  const azEndpoint = $("#cfg-azure-endpoint");
+  if (azEndpoint) azEndpoint.value = cfg.azure_endpoint || "";
+
+  const azKey = $("#cfg-azure-key");
+  if (azKey) azKey.value = "";
+
+  const azDeployment = $("#cfg-azure-deployment");
+  if (azDeployment) azDeployment.value = cfg.azure_deployment || "sora-2";
+
+  const azStyle = $("#cfg-azure-style");
+  if (azStyle) azStyle.value = cfg.azure_api_style || "videos";
+
+  const ffmpegInput = $("#cfg-ffmpeg-path");
+  if (ffmpegInput) ffmpegInput.value = cfg.ffmpeg_path || "";
+
+  const geminiBox = $("#status-gemini-box");
+  const geminiTxt = $("#status-gemini-text");
+  if (geminiBox && geminiTxt) {
+    if (cfg.has_api_key) {
+      geminiBox.className = "status-item connected";
+      geminiTxt.textContent = "Conectada (AI Studio)";
+    } else {
+      geminiBox.className = "status-item disconnected";
+      geminiTxt.textContent = "Não configurada";
+    }
+  }
+
+  const ffmpegBox = $("#status-ffmpeg-box");
+  const ffmpegTxt = $("#status-ffmpeg-text");
+  if (ffmpegBox && ffmpegTxt) {
+    if (cfg.postproduction) {
+      ffmpegBox.className = "status-item connected";
+      const binName = cfg.ffmpeg_path ? cfg.ffmpeg_path.split(/[/\\]/).pop() : "ffmpeg";
+      ffmpegTxt.textContent = `Pronto (${binName})`;
+    } else {
+      ffmpegBox.className = "status-item disconnected";
+      ffmpegTxt.textContent = "Não encontrado";
+    }
+  }
+
+  const providerBox = $("#status-provider-box");
+  const providerTxt = $("#status-provider-text");
+  if (providerBox && providerTxt) {
+    providerBox.className = "status-item active";
+    providerTxt.textContent = `${cfg.provider || "mock"}${
+      cfg.provider === "gemini" ? " (Omni Flash)" : cfg.provider === "azure" ? " (Sora-2)" : " (Offline)"
+    }`;
+  }
+
+  const msg = $("#config-modal-msg");
+  if (msg) {
+    msg.hidden = true;
+    msg.textContent = "";
+  }
+
+  modal.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeConfigModal() {
+  const modal = $("#config-modal");
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.style.overflow = "";
+}
+
+async function saveConfigForm(event) {
+  event.preventDefault();
+  const btn = $("#config-modal-save");
+  const msg = $("#config-modal-msg");
+  btn.disabled = true;
+  btn.textContent = "Salvando...";
+  msg.hidden = true;
+  try {
+    const payload = {
+      provider: $("#cfg-provider").value,
+      gemini_api_key: $("#cfg-gemini-key").value.trim() || undefined,
+      azure_endpoint: $("#cfg-azure-endpoint").value.trim() || undefined,
+      azure_api_key: $("#cfg-azure-key").value.trim() || undefined,
+      azure_deployment: $("#cfg-azure-deployment").value.trim() || undefined,
+      azure_api_style: $("#cfg-azure-style").value || undefined,
+      ffmpeg: $("#cfg-ffmpeg-path").value.trim() || undefined,
+    };
+    state.config = await api.post("/api/config", payload);
+
+    const chaining = state.config.chaining === "keyframe" ? " · encadeia por keyframe" : "";
+    $("#runtime-badge").textContent =
+      `${state.config.provider === "azure" ? "sora-2 · foundry" : state.config.model} · provider ${
+        state.config.provider
+      }${chaining}` + (state.config.text_available ? ` · texto ${state.config.text_model}` : " · texto local");
+    $("#foot-model").textContent = state.config.has_api_key ? "gemini api conectada" : "modo mock — sem api key";
+
+    msg.textContent = "Configurações salvas e aplicadas!";
+    msg.className = "note success";
+    msg.hidden = false;
+
+    renderPipeline();
+    setTimeout(() => {
+      closeConfigModal();
+    }, 800);
+  } catch (err) {
+    msg.textContent = err.message || "Erro ao salvar configurações.";
+    msg.className = "note error";
+    msg.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Salvar Configurações";
+  }
+}
+
 /* -------------------------------------------------------------- projetos */
 
 async function loadProjects(selectId) {
@@ -150,12 +273,14 @@ function renderConsole() {
     ["04", "render"],
     ["05", "pós"],
   ];
-  let reached = 0;
-  if (pipeline) reached = pipeline.status === "draft" ? 3 : 4;
-  if (state.exports.some((e) => e.status === "completed")) reached = 5;
   const renders = pipeline?.renders || [];
   const completed = renders.filter((r) => r.status === "completed");
   const running = pipeline?.status === "rendering";
+
+  let reached = 0;
+  if (pipeline) reached = pipeline.status === "draft" ? 3 : 4;
+  if (completed.length > 0 && !running) reached = 5;
+  if (state.exports.some((e) => e.status === "completed")) reached = 5;
 
   $("#console-ref").textContent = pipeline ? `${pipeline.id.toUpperCase()} / ${pipeline.status.toUpperCase()}` : "—";
   $("#console-title").textContent = pipeline?.title || "Nenhum filme em produção";
@@ -178,7 +303,11 @@ function renderConsole() {
   const warning = pipeline?.error || pipeline?.story?.warning || pipeline?.storyboard?.warning;
   const note = $("#console-note");
   note.hidden = !warning;
-  if (warning) $("div", note).textContent = warning;
+  if (warning) {
+    $("div", note).textContent = warning;
+    note.style.cursor = "pointer";
+    note.title = "Clique para abrir as configurações de API / Provedor";
+  }
 
   $("#console-owner").textContent = `Provider ${state.config.provider}`;
   $("#console-rule").textContent =
@@ -329,6 +458,12 @@ function renderRender() {
   $("#render-start").disabled = busy;
   $("#render-start").textContent = busy ? "Renderizando…" : "Renderizar filme";
   const finished = completedRenders.at(-1);
+
+  const nextBtn = $("#render-next");
+  if (nextBtn) {
+    nextBtn.style.display = (completedRenders.length > 0 && !busy) ? "inline-block" : "none";
+  }
+
   $("#render-note").textContent =
     pipeline.error ||
     (busy
@@ -705,6 +840,22 @@ function bindEvents() {
     event.target.textContent = "copiado";
     setTimeout(() => (event.target.textContent = "copiar prompt"), 1500);
   });
+
+  $("#render-next")?.addEventListener("click", () => $("#step-5").scrollIntoView({ behavior: "smooth" }));
+
+  $("#open-config-btn")?.addEventListener("click", openConfigModal);
+  $("#config-modal-close")?.addEventListener("click", closeConfigModal);
+  $("#config-modal-cancel")?.addEventListener("click", closeConfigModal);
+  $("#config-modal")?.addEventListener("click", (event) => {
+    if (event.target.id === "config-modal") closeConfigModal();
+  });
+  $("#config-form")?.addEventListener("submit", saveConfigForm);
+  $("#toggle-gemini-vis")?.addEventListener("click", () => {
+    const input = $("#cfg-gemini-key");
+    if (input) input.type = input.type === "password" ? "text" : "password";
+  });
+  $("#console-note")?.addEventListener("click", openConfigModal);
+  $("#foot-model")?.addEventListener("click", openConfigModal);
 
   $("#render-start").addEventListener("click", async () => {
     try {

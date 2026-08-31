@@ -259,6 +259,221 @@ input[type=file] { border: 0; font-size: 13px; padding-left: 0; }
   letter-spacing: .12em; color: var(--ink-40); text-transform: uppercase;
 }
 
+/* ---------------------------------------------------------------- modal config */
+.btn-config {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  font-weight: 500;
+}
+.btn-config:hover {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.foot-clickable {
+  cursor: pointer;
+  border-bottom: 1px dashed var(--ink-40);
+  transition: color 0.15s, border-color 0.15s;
+}
+.foot-clickable:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 13, 0.65);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.modal-card {
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 0 20px 50px rgba(15, 15, 13, 0.35);
+  width: 100%;
+  max-width: 600px;
+  padding: 32px;
+  animation: modalIn 0.2s ease-out;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 16px;
+}
+.modal-head h3 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 600;
+}
+.modal-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-60);
+}
+.modal-close {
+  background: none;
+  border: 0;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--ink-60);
+  padding: 4px 8px;
+}
+.modal-close:hover {
+  color: var(--ink);
+}
+
+.status-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.status-item {
+  border: 1px solid var(--rule);
+  background: #fbfaf6;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.status-item .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ink-40);
+  flex-shrink: 0;
+}
+.status-item.connected .dot { background: var(--green); box-shadow: 0 0 8px rgba(183,224,138,0.6); }
+.status-item.disconnected .dot { background: var(--amber); }
+.status-item.active .dot { background: var(--green); }
+.status-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.status-info strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+.status-info small {
+  font: 10px/1.2 var(--mono);
+  color: var(--ink-60);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.config-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.config-form .field span {
+  font: 11px/1 var(--mono);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-60);
+}
+.config-form input, .config-form select {
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  background: #fff;
+  font-size: 14px;
+}
+.config-form input:focus, .config-form select:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+.field-help {
+  font: 11px/1.3 var(--mono);
+  color: var(--ink-40);
+  margin-top: 2px;
+}
+.field-help a {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.input-action-wrap {
+  display: flex;
+  position: relative;
+}
+.input-action-wrap input {
+  flex: 1;
+  padding-right: 42px;
+}
+.btn-toggle-vis {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 6px;
+  opacity: 0.6;
+}
+.btn-toggle-vis:hover { opacity: 1; }
+
+.config-accordion {
+  border: 1px solid var(--rule);
+  background: #fbfaf6;
+  padding: 12px 14px;
+}
+.config-accordion summary {
+  font: 12px/1 var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 600;
+}
+.accordion-content {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--rule);
+}
+.grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
 @media (max-width: 1080px) {
   .hero { grid-template-columns: 1fr; padding-top: 56px; }
   .console { transform: none; }

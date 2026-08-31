@@ -5,3 +5,5 @@ __pycache__/
 .venv/
 brand-overlays/node_modules/
 brand-overlays/out/
+.claude-flow/
+.vscode/

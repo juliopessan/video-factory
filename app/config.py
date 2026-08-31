@@ -92,4 +92,54 @@ def get_settings() -> Settings:
     return settings
 
 
+def update_settings(updates: dict[str, str | None]) -> Settings:
+    global settings
+    env_file = BASE_DIR / ".env"
+    existing_lines: list[str] = []
+    if env_file.exists():
+        existing_lines = env_file.read_text(encoding="utf-8").splitlines()
+
+    key_map = {
+        "gemini_api_key": "GEMINI_API_KEY",
+        "provider": "VF_PROVIDER",
+        "model": "VF_MODEL",
+        "azure_endpoint": "AZURE_OPENAI_ENDPOINT",
+        "azure_api_key": "AZURE_OPENAI_API_KEY",
+        "azure_deployment": "VF_AZURE_DEPLOYMENT",
+        "azure_api_version": "VF_AZURE_API_VERSION",
+        "azure_api_style": "VF_AZURE_API_STYLE",
+        "ffmpeg": "VF_FFMPEG",
+        "ffprobe": "VF_FFPROBE",
+    }
+
+    env_updates: dict[str, str] = {}
+    for k, v in updates.items():
+        if k in key_map and v is not None:
+            env_var = key_map[k]
+            val = str(v).strip()
+            os.environ[env_var] = val
+            env_updates[env_var] = val
+
+    new_lines = []
+    handled_vars = set()
+    for line in existing_lines:
+        trimmed = line.strip()
+        if trimmed and not trimmed.startswith("#") and "=" in trimmed:
+            k, _ = trimmed.split("=", 1)
+            var_name = k.strip()
+            if var_name in env_updates:
+                new_lines.append(f"{var_name}={env_updates[var_name]}")
+                handled_vars.add(var_name)
+                continue
+        new_lines.append(line)
+
+    for var_name, val in env_updates.items():
+        if var_name not in handled_vars:
+            new_lines.append(f"{var_name}={val}")
+
+    env_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    settings = get_settings()
+    return settings
+
+
 settings = get_settings()

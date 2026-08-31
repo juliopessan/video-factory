@@ -21,6 +21,7 @@
     <button class="nav-link" data-tab="library">Library</button>
   </nav>
   <div class="head-right">
+    <button class="btn-mini btn-config" id="open-config-btn" type="button" title="Configurar chaves e provedor">⚙️ Chaves & Config</button>
     <select id="project-select" class="bare-select" aria-label="Projeto"></select>
     <button class="btn-outline" id="new-project">Novo projeto ↗</button>
   </div>
@@ -130,6 +131,7 @@
       <div class="render-controls">
         <label class="field inline"><span>Resolução final</span><select id="render-resolution"></select></label>
         <button class="btn-solid" id="render-start">Renderizar filme</button>
+        <button class="btn-solid" id="render-next" style="display:none">Avançar para pós-produção (05) ↓</button>
         <span class="note" id="render-note"></span>
       </div>
       <div class="render-stage">
@@ -236,8 +238,119 @@
 
 <footer class="site-foot">
   <span class="eyebrow"><i></i> LOCAL FIRST · SEUS ARQUIVOS FICAM EM ./storage</span>
-  <span id="foot-model">—</span>
+  <span id="foot-model" class="foot-clickable" title="Clique para configurar chaves e provedor">—</span>
 </footer>
+
+<!-- ═══════════════════════════════════════════════════════ MODAL CONFIG -->
+<div class="modal-backdrop" id="config-modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3>Configuração & Chaves de API</h3>
+        <p class="modal-sub">Defina suas credenciais de IA e verifique os recursos locais.</p>
+      </div>
+      <button class="modal-close" id="config-modal-close" type="button" aria-label="Fechar">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <!-- Status Rápidos -->
+      <div class="status-summary">
+        <div class="status-item" id="status-gemini-box">
+          <span class="dot"></span>
+          <div class="status-info">
+            <strong>Gemini API</strong>
+            <small id="status-gemini-text">Não configurada</small>
+          </div>
+        </div>
+        <div class="status-item" id="status-ffmpeg-box">
+          <span class="dot"></span>
+          <div class="status-info">
+            <strong>FFmpeg Local</strong>
+            <small id="status-ffmpeg-text">Verificando...</small>
+          </div>
+        </div>
+        <div class="status-item" id="status-provider-box">
+          <span class="dot"></span>
+          <div class="status-info">
+            <strong>Provedor Ativo</strong>
+            <small id="status-provider-text">mock</small>
+          </div>
+        </div>
+      </div>
+
+      <form id="config-form" class="config-form">
+        <!-- Provedor -->
+        <label class="field">
+          <span>Provedor de Vídeo</span>
+          <select name="provider" id="cfg-provider">
+            <option value="auto">Auto (Gemini se houver chave, senão Azure, senão Mock)</option>
+            <option value="gemini">Google Gemini (Omni 1.1 Flash)</option>
+            <option value="azure">Azure Foundry (Sora-2)</option>
+            <option value="mock">Mock offline (Local, sem gastar cota)</option>
+          </select>
+        </label>
+
+        <!-- Gemini API Key -->
+        <div class="field-group">
+          <label class="field">
+            <span>Gemini API Key (Google AI Studio)</span>
+            <div class="input-action-wrap">
+              <input type="password" name="gemini_api_key" id="cfg-gemini-key" placeholder="Insira a chave GEMINI_API_KEY..." autocomplete="off" />
+              <button type="button" class="btn-toggle-vis" id="toggle-gemini-vis" title="Mostrar/ocultar chave">👁️</button>
+            </div>
+            <small class="field-help">Obtenha sua chave gratuita em <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey ↗</a></small>
+          </label>
+        </div>
+
+        <!-- Azure Foundry / OpenAI (Collapsible) -->
+        <details class="config-accordion" id="cfg-azure-details">
+          <summary>Credenciais Azure OpenAI / Foundry (Sora-2)</summary>
+          <div class="accordion-content">
+            <label class="field">
+              <span>Azure Endpoint</span>
+              <input name="azure_endpoint" id="cfg-azure-endpoint" placeholder="https://SEU-RECURSO.cognitiveservices.azure.com" />
+            </label>
+            <label class="field">
+              <span>Azure API Key</span>
+              <input type="password" name="azure_api_key" id="cfg-azure-key" placeholder="Chave do recurso Azure" autocomplete="off" />
+            </label>
+            <div class="grid-2col">
+              <label class="field">
+                <span>Deployment</span>
+                <input name="azure_deployment" id="cfg-azure-deployment" value="sora-2" />
+              </label>
+              <label class="field">
+                <span>API Style</span>
+                <select name="azure_api_style" id="cfg-azure-style">
+                  <option value="videos">videos (OpenAI v1, padrão)</option>
+                  <option value="generations">generations (legado)</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </details>
+
+        <!-- FFmpeg Path -->
+        <details class="config-accordion" id="cfg-ffmpeg-details">
+          <summary>Caminho do FFmpeg / Binários de Pós-Produção</summary>
+          <div class="accordion-content">
+            <label class="field">
+              <span>Caminho do executável FFmpeg (VF_FFMPEG)</span>
+              <input name="ffmpeg" id="cfg-ffmpeg-path" placeholder="C:\...\ffmpeg.exe ou /usr/bin/ffmpeg" />
+              <small class="field-help" id="cfg-ffmpeg-detected">Detectado automaticamente se estiver no PATH ou WinGet.</small>
+            </label>
+          </div>
+        </details>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-outline" id="config-modal-cancel">Cancelar</button>
+          <button type="submit" class="btn-solid" id="config-modal-save">Salvar Configurações</button>
+        </div>
+        <div class="note" id="config-modal-msg" hidden></div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>

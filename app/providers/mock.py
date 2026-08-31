@@ -74,28 +74,66 @@ def render_clip_svg(request: VideoRequest, clip_id: str) -> bytes:
 </svg>""".encode("utf-8")
 
 
+def _find_font() -> str | None:
+    env_font = os.environ.get("VF_FONTFILE")
+    if env_font and Path(env_font).exists():
+        if env_font.lower().startswith("c:/windows"):
+            return "/Windows/" + env_font[11:].replace("\\", "/")
+        return Path(env_font).as_posix()
+    candidates = [
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/segoeui.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/System/Library/Fonts/SFNSText.ttf",
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            if c.lower().startswith("c:/windows"):
+                return "/Windows/" + c[11:].replace("\\", "/")
+            return Path(c).as_posix()
+    return None
+
+
 def render_clip_mp4(request: VideoRequest, clip_id: str, ffmpeg: str) -> bytes | None:
     """Clipe real, para a pós-produção ter o que processar offline."""
     bg, accent, _ = _palette(request.prompt + request.mode)
     width, height = (1280, 720) if request.aspect_ratio == "16:9" else (720, 1280)
     legend = " ".join(_wrap(request.prompt, width=28, max_lines=3))
     legend = legend.replace("'", "").replace(":", " ").replace("\\", " ")
+    font = _find_font()
+    font_arg = f"fontfile={font}:" if font else ""
+    vf = (
+        f"drawbox=x=0:y=ih-12:w=iw*t/{request.duration_seconds}:h=12:color={accent}:t=fill,"
+        f"drawtext={font_arg}text='{legend}':fontcolor=white:fontsize={height // 22}:x=(w-tw)/2:y=(h-th)/2,"
+        f"drawtext={font_arg}text='{clip_id[:8]} %{{eif\\:t\\:d}}s':fontcolor=white@0.6:fontsize={height // 34}:x=40:y=h-80"
+    )
     with tempfile.TemporaryDirectory() as tmp:
         destination = Path(tmp) / "clip.mp4"
         command = [
             ffmpeg, "-y", "-loglevel", "error",
             "-f", "lavfi", "-i", f"color=c={bg}:s={width}x{height}:d={request.duration_seconds}:r=25",
             "-f", "lavfi", "-i", f"sine=frequency=320:duration={request.duration_seconds}",
-            "-vf",
-            f"drawbox=x=0:y=ih-12:w=iw*t/{request.duration_seconds}:h=12:color={accent}:t=fill,"
-            f"drawtext=text='{legend}':fontcolor=white:fontsize={height // 22}:x=(w-tw)/2:y=(h-th)/2,"
-            f"drawtext=text='{clip_id[:8]} %{{eif\\:t\\:d}}s':fontcolor=white@0.6:fontsize={height // 34}:x=40:y=h-80",
+            "-vf", vf,
             "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-shortest", str(destination),
         ]
         result = subprocess.run(command, capture_output=True, text=True, timeout=600)
         if result.returncode != 0 or not destination.exists():
-            return None
+            # Fallback sem drawtext caso haja restrição de fonte ou fontconfig
+            fallback_command = [
+                ffmpeg, "-y", "-loglevel", "error",
+                "-f", "lavfi", "-i", f"color=c={bg}:s={width}x{height}:d={request.duration_seconds}:r=25",
+                "-f", "lavfi", "-i", f"sine=frequency=320:duration={request.duration_seconds}",
+                "-vf", f"drawbox=x=0:y=ih-12:w=iw*t/{request.duration_seconds}:h=12:color={accent}:t=fill",
+                "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-shortest", str(destination),
+            ]
+            result = subprocess.run(fallback_command, capture_output=True, text=True, timeout=600)
+            if result.returncode != 0 or not destination.exists():
+                return None
         return destination.read_bytes()
 
 
