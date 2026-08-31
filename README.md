@@ -145,6 +145,7 @@ python3 tests_post.py      # legendas, argv do FFmpeg, export e montagem reais
 python3 tests_azure.py     # provider Sora-2 com transporte HTTP falso
 python3 tests_keyframe.py  # jornada com provider que não estende cena
 python3 tests_overlays.py  # camada Remotion e composição sobre o filme
+python3 tests_timing.py    # tempo em ticks inteiros e miniaturas
 ```
 
 ---
@@ -191,7 +192,11 @@ já é o filme inteiro.
   | `burn` | desenhada nos pixels | feed do Instagram, TikTok, LinkedIn, onde não há faixa selecionável — irreversível |
   | `none` | nenhuma legenda no arquivo | quando a legenda entra depois, em outra ferramenta |
 
-  O `.srt` é sempre gerado e fica disponível para download, nos três modos.
+  O `.srt` é sempre gerado e fica disponível para download, nos três modos. As janelas são
+  calculadas em **ticks inteiros** a 120.000 por segundo (`app/timing.py`), não em segundos
+  float: 120.000 divide exato por todo denominador de frame rate padrão — 23,976 dá 5.005 ticks
+  por frame, 29,97 dá 4.004, 30 dá 4.000 — então a soma das legendas fecha exatamente na janela
+  da peça. Ideia emprestada do [OpenCut](https://github.com/opencut-app/opencut) (MIT).
 - **Áudio** normalizado a −14 LUFS (EBU R128), com fades opcionais.
 - **Formatos** 16:9, 9:16 e 1:1, em `crop` (preenche a tela) ou `pad` (preserva o quadro).
 - **Camada de marca** opcional, renderizada com Remotion e composta por cima.
@@ -293,6 +298,7 @@ app/
   pipeline.py        contexto → storytelling → storyboard → render sequencial
   textgen.py         geração de JSON estruturado para roteiro e storyboard
   mediainfo.py       duração de MP4/MOV/WebM lida do cabeçalho, sem ffmpeg
+  timing.py          tempo em ticks inteiros (120.000/s) e frame rate racional
   postproduction.py  passo 5: legendas, áudio, formatos, montagem e composição
   overlays.py        camadas de marca renderizadas com Remotion
   providers/
@@ -304,6 +310,11 @@ app/
 web/                 interface (HTML + CSS + JS, sem build)
 brand-overlays/      projeto Remotion: LowerThird e Packshot, fundo transparente
 ```
+
+Cada geração concluída ganha um **poster JPEG** (`storage/posters`), servido em
+`/api/generations/{id}/poster`. A biblioteca e o Draft Room mostram a miniatura em vez de um
+`<video>` por card — quatro clipes que custavam o download dos quatro filmes inteiros passaram a
+custar 16 KB. Clipes gerados antes disso ganham o poster na primeira visita.
 
 Além do pipeline, a interface traz o **Studio** (clipe avulso: texto, frame inicial, interpolação
 entre primeiro e último frame, referências, extensão e upscale 1080p/4K) e o **Draft Room**

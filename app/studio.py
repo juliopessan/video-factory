@@ -273,6 +273,7 @@ def create_generation(
         "interaction_id": None,
         "error": None,
         "asset_path": None,
+        "poster_path": None,
         "mime_type": None,
         "meta": json.dumps({"media": media_refs, "seed": seed}),
         "created_at": db.now(),
@@ -380,6 +381,7 @@ def run_generation(generation_id: str) -> None:
                 "status": "completed",
                 "interaction_id": result.interaction_id,
                 "asset_path": str(path),
+                "poster_path": build_poster(generation_id, path, result.mime_type),
                 "mime_type": result.mime_type,
                 "error": None,
             },
@@ -392,6 +394,20 @@ def run_generation(generation_id: str) -> None:
             generation_id,
             {"status": "failed", "error": f"{type(exc).__name__}: {exc}"},
         )
+
+
+def build_poster(generation_id: str, video: Path, mime_type: str) -> str | None:
+    """Miniatura da geração. Falha aqui não derruba o job — é enfeite, não obra."""
+    from . import postproduction
+
+    if not mime_type.startswith("video/") or not postproduction.available():
+        return None
+    try:
+        posters = settings.storage_dir / "posters"
+        posters.mkdir(parents=True, exist_ok=True)
+        return str(postproduction.extract_poster(video, posters / f"{generation_id}.jpg"))
+    except Exception:
+        return None
 
 
 def project_stats(project_id: str) -> dict:

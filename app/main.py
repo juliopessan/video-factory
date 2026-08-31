@@ -358,6 +358,23 @@ def get_media(generation_id: str):
     return FileResponse(path, media_type=generation["mime_type"] or "video/mp4")
 
 
+@app.get("/api/generations/{generation_id}/poster")
+def get_poster(generation_id: str):
+    """Miniatura do clipe. Gerações anteriores à coluna ganham o poster na
+    primeira visita, em vez de exigir re-render."""
+    generation = _guard(studio.get_generation, generation_id)
+    poster = generation.get("poster_path")
+    if not poster or not Path(poster).exists():
+        asset = generation.get("asset_path")
+        if not asset or not Path(asset).exists():
+            raise HTTPException(status_code=404, detail="Sem mídia para gerar a miniatura.")
+        poster = studio.build_poster(generation_id, Path(asset), generation.get("mime_type") or "")
+        if not poster:
+            raise HTTPException(status_code=404, detail="Miniatura indisponível.")
+        db.update("generations", generation_id, {"poster_path": poster})
+    return FileResponse(poster, media_type="image/jpeg")
+
+
 @app.post("/api/projects/{project_id}/assets", status_code=201)
 async def post_asset(
     project_id: str,

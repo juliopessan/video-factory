@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS generations (
     interaction_id      TEXT,
     error               TEXT,
     asset_path          TEXT,
+    poster_path         TEXT,
     mime_type           TEXT,
     meta                TEXT NOT NULL DEFAULT '{}',
     created_at          TEXT NOT NULL,
@@ -121,6 +122,9 @@ def init_db() -> None:
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(assets)")}
     if "duration_seconds" not in columns:
         conn.execute("ALTER TABLE assets ADD COLUMN duration_seconds REAL")
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(generations)")}
+    if "poster_path" not in columns:
+        conn.execute("ALTER TABLE generations ADD COLUMN poster_path TEXT")
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(pipelines)")}
     if "chaining" not in columns:
         conn.execute("ALTER TABLE pipelines ADD COLUMN chaining TEXT NOT NULL DEFAULT 'extend'")

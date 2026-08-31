@@ -564,7 +564,7 @@ function renderPost() {
           (item) => `<article class="clip export-card">
             <div class="media">${
               item.status === "completed"
-                ? `<video src="/api/exports/${item.id}/file" controls playsinline></video>`
+                ? `<video src="/api/exports/${item.id}/file" preload="metadata" controls playsinline></video>`
                 : `<span class="empty">${item.status}</span>`
             }</div>
             <div class="body">
@@ -620,9 +620,12 @@ async function startExport() {
 /* ------------------------------------------------------------- biblioteca */
 
 function clipCard(generation, extraActions = "") {
-  const media = generation.status === "completed"
-    ? mediaTag(generation)
-    : `<span class="empty">${generation.status}</span>`;
+  // miniatura em vez de <video>: a grade não baixa o filme inteiro por card
+  const media = generation.status !== "completed"
+    ? `<span class="empty">${generation.status}</span>`
+    : generation.poster_path || (generation.mime_type || "").startsWith("video/")
+    ? `<img loading="lazy" src="/api/generations/${generation.id}/poster" alt="" />`
+    : mediaTag(generation);
   return `<article class="clip" data-id="${generation.id}">
     <div class="media">${media}</div>
     <div class="body">

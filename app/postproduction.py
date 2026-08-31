@@ -19,6 +19,7 @@ from pathlib import Path
 
 from . import db, studio
 from .config import settings
+from .timing import TICKS_PER_SECOND, seconds_to_ticks, split_ticks, srt_timestamp
 
 
 def _find_binary(name: str, env_var: str) -> str:
@@ -120,17 +121,11 @@ def _require_ffmpeg() -> None:
 # --------------------------------------------------------------------- legendas
 
 
-def _srt_timestamp(seconds: float) -> str:
-    ms = int(round(seconds * 1000))
-    h, ms = divmod(ms, 3_600_000)
-    m, ms = divmod(ms, 60_000)
-    s, ms = divmod(ms, 1000)
-    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-
-
 MAX_LINE_CHARS = 42
 MAX_CUE_LINES = 2
 MIN_CUE_SECONDS = 1.2  # abaixo disso a legenda pisca e ninguem le
+MIN_CUE_TICKS = seconds_to_ticks(MIN_CUE_SECONDS)
+CUE_GAP_TICKS = seconds_to_ticks(0.2)  # respiro entre a ultima legenda e a peca seguinte
 
 
 def _split_cues(text: str, line_chars: int = MAX_LINE_CHARS) -> list[str]:
@@ -145,30 +140,35 @@ def build_srt(segments: list[dict], segment_seconds: int, line_chars: int = MAX_
     A locução já vem escrita e cronometrada, então não há transcrição: as marcas
     de tempo saem do próprio plano. Locução longa vira várias legendas dentro da
     janela da peça, repartidas pelo tamanho do texto — nada é truncado.
+
+    Toda a aritmética é em ticks inteiros (ver `app/timing.py`): a soma das
+    legendas fecha exatamente na janela da peça, sem o resto que a divisão em
+    float deixava para trás.
     """
     cues: list[str] = []
+    janela_ticks = segment_seconds * TICKS_PER_SECOND
     for index, segment in enumerate(segments):
         text = " ".join((segment.get("vo") or "").split())
         if not text:
             continue
         blocks = _split_cues(text, line_chars)
-        window_start = index * segment_seconds
-        window_end = window_start + segment_seconds - 0.2
-        window = window_end - window_start
-        total_chars = sum(len(b) for b in blocks) or 1
-        # o tempo acompanha o tamanho do texto, mas um bloco curto no fim da peca
+        inicio = index * janela_ticks
+        fim = inicio + janela_ticks - CUE_GAP_TICKS
+        disponivel = fim - inicio
+
+        # o tempo acompanha o tamanho do texto, mas um bloco curto no fim da peça
         # ganharia uma legenda que pisca: nesse caso divide a janela por igual.
-        shares = [window * len(b) / total_chars for b in blocks]
-        if min(shares) < MIN_CUE_SECONDS:
-            shares = [window / len(blocks)] * len(blocks)
-        cursor = window_start
-        for position, block in enumerate(blocks):
-            share = shares[position]
-            end = window_end if position == len(blocks) - 1 else min(cursor + share, window_end)
+        fatias = split_ticks(disponivel, [len(b) for b in blocks])
+        if min(fatias) < MIN_CUE_TICKS:
+            fatias = split_ticks(disponivel, [1] * len(blocks))
+
+        cursor = inicio
+        for posicao, block in enumerate(blocks):
+            termino = fim if posicao == len(blocks) - 1 else cursor + fatias[posicao]
             cues.append(
-                f"{len(cues) + 1}\n{_srt_timestamp(cursor)} --> {_srt_timestamp(end)}\n{block}\n"
+                f"{len(cues) + 1}\n{srt_timestamp(cursor)} --> {srt_timestamp(termino)}\n{block}\n"
             )
-            cursor = end
+            cursor = termino
     return "\n".join(cues)
 
 
@@ -288,6 +288,27 @@ def extract_last_frame(video: str | Path, destination: str | Path) -> Path:
     )
     if result.returncode != 0 or not destination.exists():
         raise studio.StudioError(f"Não consegui extrair o último frame: {result.stderr[:300]}")
+    return destination
+
+
+def extract_poster(video: str | Path, destination: str | Path, at_fraction: float = 0.4) -> Path:
+    """Quadro de capa em JPEG, tirado a 40% do clipe.
+
+    A grade da biblioteca mostrava um `<video>` por card, o que faz o navegador
+    baixar cada filme inteiro só para desenhar a miniatura. Um poster de dezenas
+    de KB resolve, e o vídeo só carrega quando alguém abre o clipe.
+    """
+    _require_ffmpeg()
+    destination = Path(destination)
+    duracao = probe_duration(video) or 0
+    instante = max(duracao * at_fraction, 0)
+    resultado = subprocess.run(
+        [FFMPEG, "-y", "-loglevel", "error", "-ss", f"{instante:.3f}", "-i", str(video),
+         "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", str(destination)],
+        capture_output=True, text=True, timeout=300,
+    )
+    if resultado.returncode != 0 or not destination.exists():
+        raise studio.StudioError(f"Não consegui extrair o poster: {resultado.stderr[:200]}")
     return destination
 
 
