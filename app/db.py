@@ -7,7 +7,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-from .config import settings
+from . import config
 
 _local = threading.local()
 
@@ -107,7 +107,7 @@ def now() -> str:
 def connect() -> sqlite3.Connection:
     conn = getattr(_local, "conn", None)
     if conn is None:
-        conn = sqlite3.connect(settings.db_path, timeout=30, check_same_thread=False)
+        conn = sqlite3.connect(config.settings.db_path, timeout=30, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")

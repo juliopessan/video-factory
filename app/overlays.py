@@ -16,7 +16,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .config import BASE_DIR, settings
+from . import config
+from .config import BASE_DIR
 
 PROJECT_DIR = Path(os.environ.get("VF_REMOTION_PROJECT") or BASE_DIR / "brand-overlays")
 ENTRY = "src/index.ts"
@@ -34,7 +35,7 @@ def available() -> bool:
 
 
 def _cache_dir() -> Path:
-    path = settings.storage_dir / "overlays"
+    path = config.settings.storage_dir / "overlays"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

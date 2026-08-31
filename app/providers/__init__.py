@@ -1,4 +1,4 @@
-from ..config import settings
+from .. import config
 from .azure_sora import AzureSoraProvider
 from .base import (
     DEFAULT_CAPABILITIES,
@@ -40,7 +40,7 @@ PROVIDERS = {
 
 def get_provider(name: str | None = None) -> VideoProvider:
     """Devolve o provider ativo. `auto` escolhe pelo que estiver configurado."""
-    name = (name or settings.effective_provider).lower()
+    name = (name or config.settings.effective_provider).lower()
     if name not in PROVIDERS:
         raise ProviderError(f"Provider desconhecido: {name}. Use {', '.join(PROVIDERS)}.")
     if name not in _cache:
@@ -49,6 +49,6 @@ def get_provider(name: str | None = None) -> VideoProvider:
 
 
 def capabilities(name: str | None = None) -> dict:
-    name = (name or settings.effective_provider).lower()
+    name = (name or config.settings.effective_provider).lower()
     provider = PROVIDERS.get(name)
     return provider.capabilities() if provider else dict(DEFAULT_CAPABILITIES)

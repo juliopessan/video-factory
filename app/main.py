@@ -19,7 +19,6 @@ from .config import (
     MAX_REFERENCE_VIDEOS,
     MAX_REFERENCE_VIDEO_SECONDS,
     RESOLUTIONS,
-    settings,
 )
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"

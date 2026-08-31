@@ -18,7 +18,7 @@ import textwrap
 from pathlib import Path
 
 from . import db, studio
-from .config import settings
+from . import config
 from .timing import TICKS_PER_SECOND, seconds_to_ticks, split_ticks, srt_timestamp
 
 
@@ -368,7 +368,7 @@ def composite(base: str | Path, layer: str | Path, destination: str | Path, star
 
 
 def _exports_dir() -> Path:
-    path = settings.storage_dir / "exports"
+    path = config.settings.storage_dir / "exports"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

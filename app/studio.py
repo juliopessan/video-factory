@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import db
 from .mediainfo import probe_duration_seconds
+from . import config
 from .config import (
     ASPECT_RATIOS,
     MAX_REFERENCE_VIDEO_SECONDS,
@@ -18,7 +19,6 @@ from .config import (
     MAX_CUMULATIVE_SECONDS,
     MAX_REFERENCE_VIDEOS,
     RESOLUTIONS,
-    settings,
 )
 from .providers import MediaInput, ProviderError, VideoRequest, get_provider
 
@@ -86,7 +86,7 @@ def save_upload(project_id: str | None, filename: str, content: bytes, kind: str
         raise StudioError("Arquivo vazio.")
     suffix = Path(filename).suffix.lower() or (".png" if kind == "image" else ".mp4")
     asset_id = new_id("ast")
-    path = settings.uploads_dir / f"{asset_id}{suffix}"
+    path = config.settings.uploads_dir / f"{asset_id}{suffix}"
     path.write_bytes(content)
     duration = probe_duration_seconds(path) if kind == "video" else None
     asset = {
@@ -269,7 +269,7 @@ def create_generation(
         "cumulative_seconds": cumulative,
         "cost_units": cost_units(resolution, duration_seconds),
         "status": "queued",
-        "provider": settings.effective_provider,
+        "provider": config.settings.effective_provider,
         "interaction_id": None,
         "error": None,
         "asset_path": None,
@@ -328,7 +328,7 @@ def _media_inputs(media_refs: list[dict]) -> list[MediaInput]:
             try:
                 from . import postproduction
                 if postproduction.available():
-                    dest = settings.uploads_dir / f"{asset['id']}_{role}.png"
+                    dest = config.settings.uploads_dir / f"{asset['id']}_{role}.png"
                     if role == "first_frame":
                         postproduction.extract_first_frame(asset["path"], dest)
                     else:
@@ -372,7 +372,7 @@ def run_generation(generation_id: str) -> None:
         )
         result = get_provider(generation["provider"]).generate(request)
         suffix = mimetypes.guess_extension(result.mime_type) or ".mp4"
-        path = settings.media_dir / f"{generation_id}{suffix}"
+        path = config.settings.media_dir / f"{generation_id}{suffix}"
         path.write_bytes(result.data)
         db.update(
             "generations",
@@ -403,7 +403,7 @@ def build_poster(generation_id: str, video: Path, mime_type: str) -> str | None:
     if not mime_type.startswith("video/") or not postproduction.available():
         return None
     try:
-        posters = settings.storage_dir / "posters"
+        posters = config.settings.storage_dir / "posters"
         posters.mkdir(parents=True, exist_ok=True)
         return str(postproduction.extract_poster(video, posters / f"{generation_id}.jpg"))
     except Exception:

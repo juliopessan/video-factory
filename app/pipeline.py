@@ -13,7 +13,8 @@ import math
 
 from . import db, studio, textgen
 from .providers import capabilities as provider_capabilities
-from .config import EXTENSION_SECONDS, MAX_CUMULATIVE_SECONDS, RESOLUTIONS, settings
+from . import config
+from .config import EXTENSION_SECONDS, MAX_CUMULATIVE_SECONDS, RESOLUTIONS
 
 SEGMENT_SECONDS = EXTENSION_SECONDS  # 10s por peca, como no modelo de referencia
 
@@ -672,7 +673,7 @@ def _keyframe_media(project_id: str, generation_id: str) -> dict:
     if not previous.get("asset_path"):
         raise studio.StudioError("A peça anterior não deixou arquivo para extrair o keyframe.")
     frame = postproduction.extract_last_frame(
-        previous["asset_path"], settings.uploads_dir / f"{generation_id}_last.png"
+        previous["asset_path"], config.settings.uploads_dir / f"{generation_id}_last.png"
     )
     asset = studio.save_upload(project_id, frame.name, frame.read_bytes(), "image")
     return {"asset_id": asset["id"], "kind": "image", "role": "first_frame"}
@@ -687,7 +688,7 @@ def _first_frame_media(project_id: str, asset_id: str | None) -> dict | None:
         kind = asset.get("kind")
         mime = asset.get("mime_type") or ""
         if (kind == "video" or mime.startswith("video/")) and postproduction.available():
-            dest = settings.uploads_dir / f"{asset_id}_first.png"
+            dest = config.settings.uploads_dir / f"{asset_id}_first.png"
             postproduction.extract_first_frame(asset["path"], dest)
             if dest.exists():
                 img_asset = studio.save_upload(project_id, dest.name, dest.read_bytes(), "image")

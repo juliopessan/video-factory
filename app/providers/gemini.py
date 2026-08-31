@@ -4,7 +4,7 @@ from __future__ import annotations
 import base64
 import time
 
-from ..config import settings
+from .. import config
 from .base import DEFAULT_CAPABILITIES, TASK_BY_MODE, ProviderError, VideoRequest, VideoResult
 
 POLL_INTERVAL_SECONDS = 5
@@ -20,8 +20,8 @@ class GeminiOmniProvider:
         return dict(DEFAULT_CAPABILITIES)
 
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
-        self.api_key = api_key or settings.api_key
-        self.model = model or settings.model
+        self.api_key = api_key or config.settings.api_key
+        self.model = model or config.settings.model
         if not self.api_key:
             raise ProviderError("GEMINI_API_KEY nao configurada.")
         try:

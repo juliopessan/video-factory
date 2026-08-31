@@ -9,18 +9,23 @@ from __future__ import annotations
 import json
 import os
 
-from .config import settings
-
-TEXT_MODEL = os.environ.get("VF_TEXT_MODEL", "gemini-flash-latest")
-
-
-import json
-import os
 import re
 
-from .config import settings
+from . import config
 
-TEXT_MODEL = os.environ.get("VF_TEXT_MODEL", "gemini-flash-latest")
+# `config.settings` é relido a cada chamada de propósito: o modal de configuração
+# reconstrói o objeto, e quem guardasse uma referência continuaria com a chave
+# antiga até o servidor reiniciar.
+DEFAULT_TEXT_MODEL = "gemini-flash-latest"
+
+
+def text_model() -> str:
+    """Lido do ambiente a cada chamada, pelo mesmo motivo de `config.settings`."""
+    return os.environ.get("VF_TEXT_MODEL", DEFAULT_TEXT_MODEL)
+
+
+# mantido para quem importa TEXT_MODEL direto (interface e testes)
+TEXT_MODEL = text_model()
 
 
 class TextGenError(RuntimeError):
@@ -28,7 +33,7 @@ class TextGenError(RuntimeError):
 
 
 def available() -> bool:
-    return bool(settings.api_key)
+    return bool(config.settings.api_key)
 
 
 SAFETY_SYSTEM = """You are an expert AI video prompt safety specialist.
@@ -119,10 +124,10 @@ def generate_json(system_instruction: str, prompt: str, schema: dict) -> dict:
     except ImportError as exc:  # pragma: no cover
         raise TextGenError("Pacote google-genai nao instalado.") from exc
 
-    client = genai.Client(api_key=settings.api_key)
+    client = genai.Client(api_key=config.settings.api_key)
     try:
         response = client.models.generate_content(
-            model=TEXT_MODEL,
+            model=text_model(),
             contents=prompt,
             config={
                 "system_instruction": system_instruction,

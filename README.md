@@ -146,6 +146,7 @@ python3 tests_azure.py     # provider Sora-2 com transporte HTTP falso
 python3 tests_keyframe.py  # jornada com provider que não estende cena
 python3 tests_overlays.py  # camada Remotion e composição sobre o filme
 python3 tests_timing.py    # tempo em ticks inteiros e miniaturas
+python3 tests_config.py    # o que o modal salva chega em quem gera
 ```
 
 ---
