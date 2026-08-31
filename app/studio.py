@@ -317,12 +317,34 @@ def _media_inputs(media_refs: list[dict]) -> list[MediaInput]:
     inputs: list[MediaInput] = []
     for ref in media_refs:
         asset = get_asset(ref["asset_id"])
+        kind = asset["kind"]
+        mime = asset.get("mime_type") or ("image/png" if kind == "image" else "video/mp4")
+        role = ref.get("role", "reference")
+        data = Path(asset["path"]).read_bytes()
+
+        # Se o papel for frame estático mas o arquivo for vídeo, extrai o frame em PNG
+        if role in ("first_frame", "last_frame") and (kind == "video" or mime.startswith("video/")):
+            try:
+                from . import postproduction
+                if postproduction.available():
+                    dest = settings.uploads_dir / f"{asset['id']}_{role}.png"
+                    if role == "first_frame":
+                        postproduction.extract_first_frame(asset["path"], dest)
+                    else:
+                        postproduction.extract_last_frame(asset["path"], dest)
+                    if dest.exists():
+                        data = dest.read_bytes()
+                        kind = "image"
+                        mime = "image/png"
+            except Exception:
+                pass
+
         inputs.append(
             MediaInput(
-                kind=asset["kind"],
-                data=Path(asset["path"]).read_bytes(),
-                mime_type=asset["mime_type"],
-                role=ref.get("role", "reference"),
+                kind=kind,
+                data=data,
+                mime_type=mime,
+                role=role,
             )
         )
     return inputs

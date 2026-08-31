@@ -257,6 +257,20 @@ def build_command(
 # ------------------------------------------------------------------ execução
 
 
+def extract_first_frame(video: str | Path, destination: str | Path) -> Path:
+    """Primeiro frame de um clipe, em PNG."""
+    _require_ffmpeg()
+    destination = Path(destination)
+    result = subprocess.run(
+        [FFMPEG, "-y", "-loglevel", "error", "-ss", "0.000", "-i", str(video),
+         "-frames:v", "1", str(destination)],
+        capture_output=True, text=True, timeout=300,
+    )
+    if result.returncode != 0 or not destination.exists():
+        raise studio.StudioError(f"Não consegui extrair o primeiro frame: {result.stderr[:300]}")
+    return destination
+
+
 def extract_last_frame(video: str | Path, destination: str | Path) -> Path:
     """Último frame de um clipe, em PNG.
 

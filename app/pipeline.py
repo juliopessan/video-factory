@@ -678,6 +678,25 @@ def _keyframe_media(project_id: str, generation_id: str) -> dict:
     return {"asset_id": asset["id"], "kind": "image", "role": "first_frame"}
 
 
+def _first_frame_media(project_id: str, asset_id: str | None) -> dict | None:
+    if not asset_id:
+        return None
+    try:
+        from . import postproduction
+        asset = studio.get_asset(asset_id)
+        kind = asset.get("kind")
+        mime = asset.get("mime_type") or ""
+        if (kind == "video" or mime.startswith("video/")) and postproduction.available():
+            dest = settings.uploads_dir / f"{asset_id}_first.png"
+            postproduction.extract_first_frame(asset["path"], dest)
+            if dest.exists():
+                img_asset = studio.save_upload(project_id, dest.name, dest.read_bytes(), "image")
+                return {"asset_id": img_asset["id"], "kind": "image", "role": "first_frame"}
+    except Exception:
+        pass
+    return {"asset_id": asset_id, "kind": "image", "role": "first_frame"}
+
+
 def _run_render(pipeline_id: str, resolution: str) -> None:
     """Cada peca so entra na fila depois que a anterior termina: a extensao
     precisa do `interaction_id` do clipe anterior."""
@@ -687,11 +706,8 @@ def _run_render(pipeline_id: str, resolution: str) -> None:
         return
     context = pipeline["context"]
     segments = pipeline["storyboard"]["segments"]
-    media = (
-        [{"asset_id": context["reference_asset_id"], "kind": "image", "role": "first_frame"}]
-        if context["reference_asset_id"]
-        else []
-    )
+    first_media = _first_frame_media(pipeline["project_id"], context.get("reference_asset_id"))
+    media = [first_media] if first_media else []
     strategy = chaining_strategy()
     parent_id: str | None = None
     try:
@@ -733,6 +749,10 @@ def _run_render(pipeline_id: str, resolution: str) -> None:
                     w in err_text.lower()
                     for w in ("content_blocked", "input blocked", "sensitive words", "prohibited use", "safety")
                 )
+                is_duration_mismatch = any(
+                    w in err_text.lower()
+                    for w in ("does not match config duration", "edited video duration", "duration mismatch")
+                )
                 if is_blocked:
                     suggestion = textgen.rephrase_blocked_prompt(segment.get("prompt") or "", segment, err_text)
                     segment["safe_suggestion"] = suggestion
@@ -745,6 +765,34 @@ def _run_render(pipeline_id: str, resolution: str) -> None:
                             "error": (
                                 f"Peça {index + 1}: Prompt bloqueado pelas diretrizes de segurança do Google "
                                 "(content_blocked). Sugestão de prompt seguro gerada automaticamente."
+                            ),
+                            "updated_at": db.now(),
+                        },
+                    )
+                elif is_duration_mismatch:
+                    import re
+                    m = re.search(r"Edited video duration \([^)]*:\s*(\d+)s\)", err_text, re.IGNORECASE) or re.search(r"(\d+)s,\s*rounded", err_text, re.IGNORECASE)
+                    expected_dur = int(m.group(1)) if m else 30
+                    suggestion = {
+                        "safe_prompt": segment.get("prompt") or "",
+                        "changes_summary": (
+                            f"O Gemini identificou que a mídia de referência é um vídeo de {expected_dur}s em vez de imagem. "
+                            "Ajuste automático: extração do primeiro frame (PNG) como referência estática ou adequação da duração."
+                        ),
+                        "suggested_duration": expected_dur,
+                        "fix_type": "duration_mismatch",
+                        "error_detail": err_text,
+                    }
+                    segment["safe_suggestion"] = suggestion
+                    db.update(
+                        "pipelines",
+                        pipeline_id,
+                        {
+                            "status": "failed",
+                            "storyboard": json.dumps(pipeline["storyboard"], ensure_ascii=False),
+                            "error": (
+                                f"Peça {index + 1}: Incompatibilidade de duração detectada pelo Gemini ({expected_dur}s vs 10s). "
+                                "Sugestão de correção gerada automaticamente (aceite em 1 clique)."
                             ),
                             "updated_at": db.now(),
                         },
@@ -800,6 +848,7 @@ def accept_safe_prompt(
 ) -> dict:
     """Aplica a sugestão segura ao storyboard e opcionalmente reinicia o render."""
     pipeline = get_pipeline(pipeline_id)
+    context = pipeline["context"]
     board = pipeline["storyboard"]
     segments = board.get("segments") or []
     if not (1 <= segment_index <= len(segments)):
@@ -809,6 +858,13 @@ def accept_safe_prompt(
     suggestion = segment.get("safe_suggestion") or textgen.rephrase_blocked_prompt(
         segment.get("prompt") or "", segment
     )
+    if suggestion.get("fix_type") == "duration_mismatch":
+        ref_id = context.get("reference_asset_id")
+        if ref_id:
+            first_media = _first_frame_media(pipeline["project_id"], ref_id)
+            if first_media:
+                context["reference_asset_id"] = first_media["asset_id"]
+                db.update("pipelines", pipeline_id, {"context": json.dumps(context, ensure_ascii=False)})
     if suggestion.get("safe_prompt"):
         segment["prompt"] = suggestion["safe_prompt"]
     if suggestion.get("sanitized_shot_sequence"):
