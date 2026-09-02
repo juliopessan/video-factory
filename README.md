@@ -147,6 +147,7 @@ python3 tests_keyframe.py  # jornada com provider que não estende cena
 python3 tests_overlays.py  # camada Remotion e composição sobre o filme
 python3 tests_timing.py    # tempo em ticks inteiros e miniaturas
 python3 tests_config.py    # o que o modal salva chega em quem gera
+python3 tests_tools_tokens.py  # orçamento de janela, corte, busca e manifesto
 ```
 
 ---
@@ -313,6 +314,7 @@ app/
     mock.py          clipe sintético (MP4 com FFmpeg, senão SVG) para rodar offline
   main.py            API HTTP + entrega da interface
 web/                 interface (HTML + CSS + JS, sem build)
+tools_tokens/        contexto citado dentro de um orçamento de janela (ver seu README)
 brand-overlays/      projeto Remotion: LowerThird e Packshot, fundo transparente
 ```
 
