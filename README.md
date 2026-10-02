@@ -119,6 +119,21 @@ Um filme de 30 segundos, três peças, do briefing ao master, com o Gemini Omni 
 | Export 16:9 + 9:16 + 1:1 | 100s | legenda queimada, áudio normalizado |
 | Clipe avulso de 8s | 18s | 360p, 1,15 MB |
 
+### Higgsfield: Wan 3.0 e Kling 3.0
+
+Terceiro provider, atrás do mesmo contrato. Configure `HF_API_KEY_ID` + `HF_API_KEY_SECRET` (ou
+`HIGGSFIELD_API_KEY="id:secret"`, chaves em cloud.higgsfield.ai) e escolha o modelo em
+`VF_HIGGSFIELD_MODEL` (`wan3` ou `kling3`). Com `VF_PROVIDER=auto`, ele entra depois de Gemini e Azure.
+
+- **Wan 3.0** usa os endpoints documentados (`alibaba/wan-3.0/text-to-video` e `.../reference-to-video`).
+- **Kling 3.0** exige o endpoint id do console (`VF_HIGGSFIELD_KLING_T2V` / `_I2V`): a referência REST
+  pública não o publica, e o provider recusa com instrução em vez de chutar um caminho.
+- Não estende cena: a continuidade entre peças sai do último frame, por imagem de referência.
+- Duração livre de 2 a 30s, 480p a 1080p, áudio nativo ligado.
+- O `.mcp.json` também registra o conector MCP do Higgsfield (`https://higgsfield.ai/mcp`) para operar
+  a conta de dentro do Claude Code. O app em si fala com a API REST.
+- Validado só com transporte HTTP falso (`python3 tests_higgsfield.py`); falta rodar contra a API real.
+
 Seis suítes de teste, todas offline: `smoke`, `media`, `post`, `azure`, `keyframe`, `overlays`.
 
 ---
@@ -148,6 +163,7 @@ python3 tests_overlays.py  # camada Remotion e composição sobre o filme
 python3 tests_timing.py    # tempo em ticks inteiros e miniaturas
 python3 tests_config.py    # o que o modal salva chega em quem gera
 python3 tests_tools_tokens.py  # orçamento de janela, corte, busca e manifesto
+python3 tests_higgsfield.py    # provider Wan 3.0 / Kling 3.0 com transporte falso
 ```
 
 ---

@@ -114,6 +114,8 @@ class ConfigIn(BaseModel):
     azure_deployment: str | None = None
     azure_api_version: str | None = None
     azure_api_style: str | None = None
+    higgsfield_api_key: str | None = None
+    higgsfield_model: str | None = None
     ffmpeg: str | None = None
     ffprobe: str | None = None
 
@@ -141,6 +143,8 @@ def read_config() -> dict:
         "azure_deployment": os.environ.get("VF_AZURE_DEPLOYMENT", "sora-2"),
         "azure_api_version": os.environ.get("VF_AZURE_API_VERSION", "preview"),
         "azure_api_style": os.environ.get("VF_AZURE_API_STYLE", "videos"),
+        "has_higgsfield": bool(config_mod.settings.has_higgsfield),
+        "higgsfield_model": os.environ.get("VF_HIGGSFIELD_MODEL", "wan3"),
         "ffmpeg_path": postproduction.FFMPEG,
         "ffprobe_path": postproduction.FFPROBE,
         "modes": list(studio.MODES),

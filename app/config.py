@@ -64,13 +64,21 @@ class Settings:
         return bool(self.azure_endpoint and self.azure_api_key)
 
     @property
+    def has_higgsfield(self) -> bool:
+        from .providers.higgsfield import credentials_from_env
+
+        return ":" in credentials_from_env()
+
+    @property
     def effective_provider(self) -> str:
-        """`auto`: Gemini se houver chave, senão Azure, senão mock."""
+        """`auto`: Gemini, depois Azure, depois Higgsfield, senão mock."""
         if self.provider != "auto":
             return self.provider
         if self.api_key:
             return "gemini"
-        return "azure" if self.has_azure else "mock"
+        if self.has_azure:
+            return "azure"
+        return "higgsfield" if self.has_higgsfield else "mock"
 
 
 def get_settings() -> Settings:
@@ -108,6 +116,8 @@ def update_settings(updates: dict[str, str | None]) -> Settings:
         "azure_deployment": "VF_AZURE_DEPLOYMENT",
         "azure_api_version": "VF_AZURE_API_VERSION",
         "azure_api_style": "VF_AZURE_API_STYLE",
+        "higgsfield_api_key": "HIGGSFIELD_API_KEY",
+        "higgsfield_model": "VF_HIGGSFIELD_MODEL",
         "ffmpeg": "VF_FFMPEG",
         "ffprobe": "VF_FFPROBE",
     }

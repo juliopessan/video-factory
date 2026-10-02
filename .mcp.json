@@ -2,17 +2,26 @@
   "mcpServers": {
     "kinocut": {
       "command": "kino",
-      "args": ["--mcp"],
+      "args": [
+        "--mcp"
+      ],
       "env": {
         "MCP_VIDEO_WORKDIR": "./storage"
       }
     },
     "remotion": {
       "command": "npx",
-      "args": ["-y", "@remotion/mcp"],
+      "args": [
+        "-y",
+        "@remotion/mcp"
+      ],
       "env": {
         "REMOTION_PROJECT": "./brand-overlays"
       }
+    },
+    "higgsfield": {
+      "type": "http",
+      "url": "https://higgsfield.ai/mcp"
     }
   }
 }

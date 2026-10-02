@@ -10,6 +10,7 @@ from .base import (
     VideoResult,
 )
 from .gemini import GeminiOmniProvider
+from .higgsfield import HiggsfieldProvider
 from .mock import MockProvider
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "VideoRequest",
     "VideoResult",
     "GeminiOmniProvider",
+    "HiggsfieldProvider",
     "MockProvider",
     "get_provider",
     "capabilities",
@@ -34,6 +36,7 @@ _cache: dict[str, VideoProvider] = {}
 PROVIDERS = {
     "gemini": GeminiOmniProvider,   # Gemini Omni 1.1 Flash
     "azure": AzureSoraProvider,     # Sora-2 no Microsoft Foundry
+    "higgsfield": HiggsfieldProvider,  # Wan 3.0 / Kling 3.0 via API do Higgsfield
     "mock": MockProvider,           # offline
 }
 
