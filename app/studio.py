@@ -351,6 +351,23 @@ def _media_inputs(media_refs: list[dict]) -> list[MediaInput]:
     return inputs
 
 
+def recover_interrupted() -> int:
+    """Um reinício do servidor mata as threads de render sem avisar o banco.
+
+    Sem isto, o pipeline fica `rendering` para sempre — e `render()` recusa um
+    pipeline que já está renderizando. Roda só no startup, quando nenhuma thread
+    desta instância pode estar trabalhando.
+    """
+    reason = "Interrompido: o servidor foi reiniciado durante a geração. Renderize de novo para retomar."
+    stuck = db.query("SELECT id FROM generations WHERE status IN ('queued', 'running')")
+    for row in stuck:
+        db.update("generations", row["id"], {"status": "failed", "error": reason})
+    pipelines = db.query("SELECT id FROM pipelines WHERE status = 'rendering'")
+    for row in pipelines:
+        db.update("pipelines", row["id"], {"status": "failed", "error": reason, "updated_at": db.now()})
+    return len(pipelines)
+
+
 def run_generation(generation_id: str) -> None:
     """Executado na thread pool: chama o provider e persiste o resultado."""
     try:

@@ -134,7 +134,12 @@ def _split_cues(text: str, line_chars: int = MAX_LINE_CHARS) -> list[str]:
     return ["\n".join(lines[i : i + MAX_CUE_LINES]) for i in range(0, len(lines), MAX_CUE_LINES)]
 
 
-def build_srt(segments: list[dict], segment_seconds: int, line_chars: int = MAX_LINE_CHARS) -> str:
+def build_srt(
+    segments: list[dict],
+    segment_seconds: int,
+    line_chars: int = MAX_LINE_CHARS,
+    durations: list[float] | None = None,
+) -> str:
     """Legendas a partir da locução do storyboard.
 
     A locução já vem escrita e cronometrada, então não há transcrição: as marcas
@@ -146,13 +151,22 @@ def build_srt(segments: list[dict], segment_seconds: int, line_chars: int = MAX_
     float deixava para trás.
     """
     cues: list[str] = []
-    janela_ticks = segment_seconds * TICKS_PER_SECOND
+    # `durations`: segundos reais de cada peça, quando o provider não devolve os
+    # 10s do plano (Sora-2 só gera 4/8/12). Sem isso as legendas derivam peça a peça.
+    janelas = [
+        round(durations[i] * TICKS_PER_SECOND)
+        if durations and i < len(durations) and durations[i]
+        else segment_seconds * TICKS_PER_SECOND
+        for i in range(len(segments))
+    ]
+    inicios = [sum(janelas[:i]) for i in range(len(segments))]
     for index, segment in enumerate(segments):
         text = " ".join((segment.get("vo") or "").split())
         if not text:
             continue
         blocks = _split_cues(text, line_chars)
-        inicio = index * janela_ticks
+        janela_ticks = janelas[index]
+        inicio = inicios[index]
         fim = inicio + janela_ticks - CUE_GAP_TICKS
         disponivel = fim - inicio
 
@@ -170,6 +184,22 @@ def build_srt(segments: list[dict], segment_seconds: int, line_chars: int = MAX_
             )
             cursor = termino
     return "\n".join(cues)
+
+
+def piece_durations(pipeline: dict) -> list[float] | None:
+    """Duração real de cada peça quando elas são independentes (keyframe).
+
+    Com `extend`, cada peça traz o filme acumulado e o plano de 10s por peça vale.
+    Encadeado por keyframe o filme é a emenda das peças, e cada uma tem o tamanho
+    que o provider entregou: mede os arquivos em vez de supor.
+    """
+    if pipeline.get("chaining") != "keyframe":
+        return None
+    completed = [r for r in pipeline.get("renders") or [] if r["status"] == "completed" and r.get("asset_path")]
+    if not completed or not available():
+        return None
+    measured = [probe_duration(r["asset_path"]) for r in completed]
+    return measured if all(measured) else None
 
 
 # ------------------------------------------------------------------- comandos
@@ -465,7 +495,7 @@ def create_exports(
     # o .srt é sempre escrito: serve para o modo soft, para o burn e para download
     subtitle_paths: dict[int, Path] = {}
     for line_chars in {LINE_CHARS_BY_FORMAT.get(label, MAX_LINE_CHARS) for label in formats}:
-        srt = build_srt(segments, pipeline_mod.SEGMENT_SECONDS, line_chars)
+        srt = build_srt(segments, pipeline_mod.SEGMENT_SECONDS, line_chars, durations=piece_durations(pipeline))
         if not srt:
             continue
         path = _exports_dir() / f"{pipeline_id}.{line_chars}.srt"

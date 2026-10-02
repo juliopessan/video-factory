@@ -21,6 +21,28 @@ POLL_INITIAL_SECONDS = 2.0
 POLL_MAX_SECONDS = 10.0
 TERMINAL_STATUSES = {"completed", "failed", "nsfw", "canceled"}
 
+# Famílias 3.0, escolhidas pelo caminho do modelo (VF_HIGGSFIELD_TEXT_MODEL /
+# VF_HIGGSFIELD_IMAGE_MODEL). Duração, resolução e proporções vêm do catálogo
+# de modelos do Higgsfield. O caminho do Kling 3.0 aparece na documentação
+# pública; o corpo da requisição destas famílias é INFERIDO (prompt, duration,
+# aspect_ratio, resolution, image_url) e ainda não foi exercitado contra a API:
+# o primeiro render real confirma. Qualquer outro modelo segue o contrato
+# estrito do Wan 2.6 / Hailuo 2.3 acima.
+MODEL_PROFILES = {
+    "kling-video/v3.0/": {
+        "label": "Kling 3.0", "durations": range(3, 16), "resolutions": None,
+        "aspects": ("16:9", "9:16", "1:1"),
+    },
+    "wan/v3.0/": {
+        "label": "Wan 3.0", "durations": range(2, 31), "resolutions": ("480p", "720p", "1080p"),
+        "aspects": ("16:9", "9:16", "1:1", "4:3", "3:4"),
+    },
+}
+
+
+def model_profile(model: str) -> dict | None:
+    return next((p for prefix, p in MODEL_PROFILES.items() if model.startswith(prefix)), None)
+
 
 class HiggsfieldProvider:
     name = "higgsfield"
@@ -86,10 +108,14 @@ class HiggsfieldProvider:
         prompt = request.prompt.strip()
         if not prompt:
             raise ProviderError("O prompt é obrigatório para gerar vídeo no Higgsfield.")
+        images = [media for media in request.media if media.kind == "image"]
+        model = self.image_model if request.mode == "image_to_video" else self.text_model
+        profile = model_profile(model)
+        if profile:
+            return self._build_profile_request(request, model, profile, prompt, image_url, images)
         if request.aspect_ratio != "16:9":
             raise ProviderError("O workflow Wan/Hailuo configurado aceita apenas 16:9.")
 
-        images = [media for media in request.media if media.kind == "image"]
         if request.mode == "image_to_video":
             if len(request.media) != 1 or len(images) != 1 or not image_url:
                 raise ProviderError("image_to_video exige exatamente uma imagem de referência.")
@@ -126,6 +152,32 @@ class HiggsfieldProvider:
             if request.seed is not None:
                 payload["seed"] = request.seed
         return url, payload
+
+    @staticmethod
+    def _build_profile_request(request, model, profile, prompt, image_url, images) -> tuple[str, dict]:
+        """Corpo das famílias 3.0 (ver MODEL_PROFILES: campos inferidos)."""
+        label = profile["label"]
+        if request.duration_seconds not in profile["durations"]:
+            low, high = profile["durations"][0], profile["durations"][-1]
+            raise ProviderError(f"{label} aceita duração de {low} a {high} segundos.")
+        if request.aspect_ratio not in profile["aspects"]:
+            raise ProviderError(
+                f"{label} aceita as proporções {', '.join(profile['aspects'])}; recebeu {request.aspect_ratio}."
+            )
+        payload = {"prompt": prompt, "duration": request.duration_seconds, "aspect_ratio": request.aspect_ratio}
+        if profile["resolutions"]:
+            if request.resolution not in profile["resolutions"]:
+                raise ProviderError(f"{label} aceita as resoluções {', '.join(profile['resolutions'])}.")
+            payload["resolution"] = request.resolution
+        if request.seed is not None:
+            payload["seed"] = request.seed
+        if request.mode == "image_to_video":
+            if len(images) != 1 or not image_url:
+                raise ProviderError("image_to_video exige exatamente uma imagem de referência.")
+            payload["image_url"] = image_url
+        elif request.media:
+            raise ProviderError("text_to_video não aceita mídia de referência.")
+        return f"{API_ROOT}/{model}", payload
 
     def _upload_image(self, client: httpx.Client, image) -> str:
         content_type = image.mime_type or "image/jpeg"
@@ -198,31 +250,6 @@ class HiggsfieldProvider:
         ):
             raise ProviderError("Resposta do Higgsfield sem status_url HTTPS válida.")
         return value
-
-        status = str(submitted.get("status") or "queued").lower()
-        result = submitted
-        deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
-        delay = POLL_INITIAL_SECONDS
-        while status not in TERMINAL_STATUSES:
-            if time.monotonic() >= deadline:
-                raise ProviderError(f"Tempo esgotado ({POLL_TIMEOUT_SECONDS}s) aguardando o Higgsfield.")
-            time.sleep(delay + random.uniform(0, 0.5))
-            result = self._json(
-                client.get(status_url, headers=self.headers),
-                "consultar status",
-            )
-            status = str(result.get("status") or "").lower()
-            delay = min(delay * 1.5, POLL_MAX_SECONDS)
-
-        if status != "completed":
-            if status == "nsfw":
-                raise ProviderError("Higgsfield recusou a geração pela moderação de conteúdo (nsfw).")
-            detail = result.get("error")
-            if isinstance(detail, dict):
-                detail = detail.get("message") or detail.get("detail") or detail.get("code")
-            suffix = f": {str(detail)[:240]}" if detail else "."
-            raise ProviderError(f"Higgsfield terminou com status '{status}'{suffix}")
-        return result
 
     @staticmethod
     def _json(response: httpx.Response, action: str) -> dict:
