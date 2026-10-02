@@ -109,6 +109,10 @@ class ConfigIn(BaseModel):
     gemini_api_key: str | None = None
     provider: str | None = None
     model: str | None = None
+    higgsfield_key_id: str | None = None
+    higgsfield_key_secret: str | None = None
+    higgsfield_text_model: str | None = None
+    higgsfield_image_model: str | None = None
     azure_endpoint: str | None = None
     azure_api_key: str | None = None
     azure_deployment: str | None = None
@@ -131,21 +135,25 @@ def _guard(fn, *args, **kwargs):
 @app.get("/api/config")
 def read_config() -> dict:
     from . import config as config_mod
+    capabilities = providers.capabilities()
     return {
         "provider": config_mod.settings.effective_provider,
         "configured_provider": config_mod.settings.provider,
         "model": config_mod.settings.model,
         "has_api_key": bool(config_mod.settings.api_key),
         "has_azure": bool(config_mod.settings.has_azure),
+        "has_higgsfield": bool(config_mod.settings.has_higgsfield),
+        "higgsfield_text_model": config_mod.settings.higgsfield_text_model,
+        "higgsfield_image_model": config_mod.settings.higgsfield_image_model,
         "azure_endpoint": config_mod.settings.azure_endpoint,
         "azure_deployment": os.environ.get("VF_AZURE_DEPLOYMENT", "sora-2"),
         "azure_api_version": os.environ.get("VF_AZURE_API_VERSION", "preview"),
         "azure_api_style": os.environ.get("VF_AZURE_API_STYLE", "videos"),
         "ffmpeg_path": postproduction.FFMPEG,
         "ffprobe_path": postproduction.FFPROBE,
-        "modes": list(studio.MODES),
-        "resolutions": list(RESOLUTIONS),
-        "aspect_ratios": list(ASPECT_RATIOS),
+        "modes": capabilities.get("modes") or list(studio.MODES),
+        "resolutions": capabilities.get("resolutions") or list(RESOLUTIONS),
+        "aspect_ratios": capabilities.get("aspect_ratios") or list(ASPECT_RATIOS),
         "clip_seconds": CLIP_SECONDS,
         "extension_seconds": EXTENSION_SECONDS,
         "max_cumulative_seconds": MAX_CUMULATIVE_SECONDS,
@@ -158,7 +166,7 @@ def read_config() -> dict:
         "postproduction": postproduction.available(),
         "overlays": overlays.available(),
         "providers": list(providers.PROVIDERS),
-        "capabilities": providers.capabilities(),
+        "capabilities": capabilities,
         "chaining": pipeline_mod.chaining_strategy(),
         "export_formats": list(postproduction.FORMATS),
         "voiceover_languages": ["pt-BR", "en-US"],

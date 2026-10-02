@@ -43,6 +43,61 @@ const fillSelect = (el, values, selected) => {
   if (selected) el.value = selected;
 };
 
+function applyProviderOptions() {
+  const resolutions = state.config?.resolutions || [];
+  const aspectRatios = state.config?.aspect_ratios || [];
+  const capabilities = state.config?.capabilities || {};
+  const defaultResolution = resolutions.includes("720p") ? "720p" : resolutions[0];
+  const defaultAspect = aspectRatios.includes("16:9") ? "16:9" : aspectRatios[0];
+
+  [$("#resolution"), $("#ctx-resolution"), $("#render-resolution")].forEach((select) => {
+    const selected = resolutions.includes(select.value) ? select.value : defaultResolution;
+    fillSelect(select, resolutions, selected);
+  });
+  [$("#aspect"), $("#draft-aspect"), $("#ctx-aspect")].forEach((select) => {
+    const selected = aspectRatios.includes(select.value) ? select.value : defaultAspect;
+    fillSelect(select, aspectRatios, selected);
+  });
+
+  const modeSelect = $("#mode");
+  const supportedModes = capabilities.modes;
+  if (modeSelect) {
+    [...modeSelect.options].forEach((option) => {
+      option.disabled = Array.isArray(supportedModes) && !supportedModes.includes(option.value);
+    });
+    if (Array.isArray(supportedModes) && !supportedModes.includes(modeSelect.value)) {
+      modeSelect.value = supportedModes[0] || "text_to_video";
+    }
+  }
+
+  const applyDurationOptions = (selector, supportedDurations) => {
+    const input = $(selector);
+    if (!input) return;
+    if (!Array.isArray(supportedDurations) || !supportedDurations.length) {
+      input.min = "1";
+      input.max = "30";
+      input.step = "1";
+      return;
+    }
+    const durations = [...new Set(supportedDurations.map(Number))].sort((a, b) => a - b);
+    const differences = durations.slice(1).map((value, index) => value - durations[index]);
+    input.min = String(durations[0]);
+    input.max = String(durations[durations.length - 1]);
+    input.step = String(differences.length ? Math.min(...differences) : 1);
+    if (!durations.includes(Number(input.value))) input.value = String(durations[0]);
+  };
+  const durationsByMode = capabilities.durations_by_mode || {};
+  applyDurationOptions("#duration", durationsByMode[modeSelect?.value]);
+  applyDurationOptions("#draft-duration", durationsByMode.text_to_video);
+  const draftDescription = $("#draft-description");
+  const draftResolution = resolutions.includes("360p") ? "360p" : resolutions[0];
+  if (draftDescription) {
+    draftDescription.textContent = draftResolution === "360p"
+      ? "Variações em 360p: mais rápidas e mais baratas. Varie uma coisa por vez e compare lado a lado."
+      : `Variações em ${draftResolution}: este provider não oferece 360p; cada rascunho usa a resolução mínima disponível.`;
+  }
+}
+
 const formatSize = (bytes) =>
   !bytes ? "" : bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
 
@@ -86,6 +141,22 @@ function openConfigModal() {
   const azStyle = $("#cfg-azure-style");
   if (azStyle) azStyle.value = cfg.azure_api_style || "videos";
 
+  const higgsfieldKeyId = $("#cfg-higgsfield-key-id");
+  if (higgsfieldKeyId) higgsfieldKeyId.value = "";
+
+  const higgsfieldKeySecret = $("#cfg-higgsfield-key-secret");
+  if (higgsfieldKeySecret) higgsfieldKeySecret.value = "";
+
+  const higgsfieldTextModel = $("#cfg-higgsfield-text-model");
+  if (higgsfieldTextModel) {
+    higgsfieldTextModel.value = cfg.higgsfield_text_model || "wan/v2.6/text-to-video";
+  }
+
+  const higgsfieldImageModel = $("#cfg-higgsfield-image-model");
+  if (higgsfieldImageModel) {
+    higgsfieldImageModel.value = cfg.higgsfield_image_model || "minimax/hailuo-2.3/standard/image-to-video";
+  }
+
   const ffmpegInput = $("#cfg-ffmpeg-path");
   if (ffmpegInput) ffmpegInput.value = cfg.ffmpeg_path || "";
 
@@ -119,7 +190,7 @@ function openConfigModal() {
   if (providerBox && providerTxt) {
     providerBox.className = "status-item active";
     providerTxt.textContent = `${cfg.provider || "mock"}${
-      cfg.provider === "gemini" ? " (Omni Flash)" : cfg.provider === "azure" ? " (Sora-2)" : " (Offline)"
+      cfg.provider === "gemini" ? " (Omni Flash)" : cfg.provider === "azure" ? " (Sora-2)" : cfg.provider === "higgsfield" ? " (Wan 2.6 + Hailuo 2.3)" : " (Offline)"
     }`;
   }
 
@@ -151,6 +222,10 @@ async function saveConfigForm(event) {
     const payload = {
       provider: $("#cfg-provider").value,
       gemini_api_key: $("#cfg-gemini-key").value.trim() || undefined,
+      higgsfield_key_id: $("#cfg-higgsfield-key-id").value.trim() || undefined,
+      higgsfield_key_secret: $("#cfg-higgsfield-key-secret").value.trim() || undefined,
+      higgsfield_text_model: $("#cfg-higgsfield-text-model").value.trim() || undefined,
+      higgsfield_image_model: $("#cfg-higgsfield-image-model").value.trim() || undefined,
       azure_endpoint: $("#cfg-azure-endpoint").value.trim() || undefined,
       azure_api_key: $("#cfg-azure-key").value.trim() || undefined,
       azure_deployment: $("#cfg-azure-deployment").value.trim() || undefined,
@@ -158,13 +233,25 @@ async function saveConfigForm(event) {
       ffmpeg: $("#cfg-ffmpeg-path").value.trim() || undefined,
     };
     state.config = await api.post("/api/config", payload);
+    applyProviderOptions();
+    renderMediaSlots();
 
     const chaining = state.config.chaining === "keyframe" ? " · encadeia por keyframe" : "";
+    const activeModel = state.config.provider === "azure"
+      ? "sora-2 · foundry"
+      : state.config.provider === "higgsfield"
+        ? "Wan 2.6 + Hailuo 2.3"
+        : state.config.model;
     $("#runtime-badge").textContent =
-      `${state.config.provider === "azure" ? "sora-2 · foundry" : state.config.model} · provider ${
-        state.config.provider
-      }${chaining}` + (state.config.text_available ? ` · texto ${state.config.text_model}` : " · texto local");
-    $("#foot-model").textContent = state.config.has_api_key ? "gemini api conectada" : "modo mock — sem api key";
+      `${activeModel} · provider ${state.config.provider}${chaining}` +
+      (state.config.text_available ? ` · texto ${state.config.text_model}` : " · texto local");
+    $("#foot-model").textContent = state.config.provider === "higgsfield"
+      ? "higgsfield api conectada"
+      : state.config.has_api_key
+        ? "gemini api conectada"
+        : state.config.has_azure
+          ? "azure foundry conectado"
+          : "modo mock — sem api key";
 
     msg.textContent = "Configurações salvas e aplicadas!";
     msg.className = "note success";
@@ -1004,7 +1091,10 @@ function bindEvents() {
   });
   $("#export-start").addEventListener("click", startExport);
 
-  $("#mode").addEventListener("change", renderMediaSlots);
+  $("#mode").addEventListener("change", () => {
+    applyProviderOptions();
+    renderMediaSlots();
+  });
   $("#resolution").addEventListener("change", updateCost);
   $("#duration").addEventListener("input", updateCost);
   $("#composer").addEventListener("submit", submitComposer);
@@ -1054,21 +1144,27 @@ async function boot() {
   state.config = await api.get("/api/config");
   const { resolutions, aspect_ratios, segment_seconds, max_cumulative_seconds } = state.config;
 
-  fillSelect($("#resolution"), resolutions, "720p");
-  fillSelect($("#aspect"), aspect_ratios);
-  fillSelect($("#draft-aspect"), aspect_ratios);
-  fillSelect($("#ctx-aspect"), aspect_ratios);
-  fillSelect($("#ctx-resolution"), resolutions, "720p");
-  fillSelect($("#render-resolution"), resolutions, "720p");
+  applyProviderOptions();
   const durations = [];
   for (let s = segment_seconds; s <= max_cumulative_seconds; s += segment_seconds) durations.push(s);
   fillSelect($("#ctx-duration"), durations, 30);
 
   const chaining = state.config.chaining === "keyframe" ? " · encadeia por keyframe" : "";
+  const activeModel = state.config.provider === "azure"
+    ? "sora-2 · foundry"
+    : state.config.provider === "higgsfield"
+      ? "Wan 2.6 + Hailuo 2.3"
+      : state.config.model;
   $("#runtime-badge").textContent =
-    `${state.config.provider === "azure" ? "sora-2 · foundry" : state.config.model} · provider ${state.config.provider}${chaining}` +
+    `${activeModel} · provider ${state.config.provider}${chaining}` +
     (state.config.text_available ? ` · texto ${state.config.text_model}` : " · texto local");
-  $("#foot-model").textContent = state.config.has_api_key ? "gemini api conectada" : "modo mock — sem api key";
+  $("#foot-model").textContent = state.config.provider === "higgsfield"
+    ? "higgsfield api conectada"
+    : state.config.has_api_key
+      ? "gemini api conectada"
+      : state.config.has_azure
+        ? "azure foundry conectado"
+        : "modo mock — sem api key";
 
   renderMediaSlots();
   updateCost();

@@ -248,7 +248,7 @@
 <!-- ═══════════════════════════════════════════════════════ DRAFTS -->
 <main id="tab-drafts" hidden>
   <section class="step first">
-    <div class="step-head"><span class="num">—</span><h3>Draft room</h3><p>Variações em 360p: mais rápidas e mais baratas. Varie uma coisa por vez e compare lado a lado.</p></div>
+    <div class="step-head"><span class="num">—</span><h3>Draft room</h3><p id="draft-description">Variações em 360p: mais rápidas e mais baratas. Varie uma coisa por vez e compare lado a lado.</p></div>
     <div id="draft-inputs"></div>
     <div class="render-controls">
       <button class="btn-outline" id="add-variation" type="button">+ Variação</button>
@@ -316,9 +316,10 @@
         <label class="field">
           <span>Provedor de Vídeo</span>
           <select name="provider" id="cfg-provider">
-            <option value="auto">Auto (Gemini se houver chave, senão Azure, senão Mock)</option>
+            <option value="auto">Auto (Gemini, Azure, Higgsfield ou Mock)</option>
             <option value="gemini">Google Gemini (Omni 1.1 Flash)</option>
             <option value="azure">Azure Foundry (Sora-2)</option>
+            <option value="higgsfield">Higgsfield API (Wan 2.6 + Hailuo 2.3)</option>
             <option value="mock">Mock offline (Local, sem gastar cota)</option>
           </select>
         </label>
@@ -360,6 +361,29 @@
                 </select>
               </label>
             </div>
+          </div>
+        </details>
+
+        <details class="config-accordion" id="cfg-higgsfield-details">
+          <summary>Credenciais Higgsfield API (Wan 2.6 + Hailuo 2.3)</summary>
+          <div class="accordion-content">
+            <label class="field">
+              <span>API Key ID</span>
+              <input type="password" name="higgsfield_key_id" id="cfg-higgsfield-key-id" placeholder="ID da chave Higgsfield" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>API Key Secret</span>
+              <input type="password" name="higgsfield_key_secret" id="cfg-higgsfield-key-secret" placeholder="Secret da chave Higgsfield" autocomplete="new-password" />
+            </label>
+            <label class="field">
+              <span>Wan 2.6 · Texto para vídeo</span>
+              <input name="higgsfield_text_model" id="cfg-higgsfield-text-model" value="wan/v2.6/text-to-video" />
+            </label>
+            <label class="field">
+              <span>Hailuo 2.3 Standard · Imagem para vídeo</span>
+              <input name="higgsfield_image_model" id="cfg-higgsfield-image-model" value="minimax/hailuo-2.3/standard/image-to-video" />
+              <small class="field-help">Wan: 5, 10 ou 15 s. Hailuo: 6 ou 10 s, saída fixa 768P. O pipeline usa 10 s por peça.</small>
+            </label>
           </div>
         </details>
 

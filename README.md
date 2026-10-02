@@ -119,7 +119,7 @@ Um filme de 30 segundos, três peças, do briefing ao master, com o Gemini Omni 
 | Export 16:9 + 9:16 + 1:1 | 100s | legenda queimada, áudio normalizado |
 | Clipe avulso de 8s | 18s | 360p, 1,15 MB |
 
-Seis suítes de teste, todas offline: `smoke`, `media`, `post`, `azure`, `keyframe`, `overlays`.
+Nove suítes de teste, todas offline: `smoke`, `media`, `post`, `azure`, `keyframe`, `overlays`, `timing`, `config`, `higgsfield`.
 
 ---
 
@@ -127,7 +127,7 @@ Seis suítes de teste, todas offline: `smoke`, `media`, `post`, `azure`, `keyfra
 
 ```bash
 git clone https://github.com/juliopessan/video-factory && cd video-factory
-cp .env.example .env          # cole a GEMINI_API_KEY (ou as credenciais do Foundry)
+cp .env.example .env          # configure as credenciais do provider escolhido
 ./run.sh                      # cria a venv, instala e sobe em http://127.0.0.1:8000
 ```
 
@@ -143,6 +143,7 @@ python3 tests_smoke.py     # jornada completa: contexto → render → limites d
 python3 tests_media.py     # duração de vídeo e corpo enviado à API por modo
 python3 tests_post.py      # legendas, argv do FFmpeg, export e montagem reais
 python3 tests_azure.py     # provider Sora-2 com transporte HTTP falso
+python3 tests_higgsfield.py # provider Higgsfield com transporte HTTP falso
 python3 tests_keyframe.py  # jornada com provider que não estende cena
 python3 tests_overlays.py  # camada Remotion e composição sobre o filme
 python3 tests_timing.py    # tempo em ticks inteiros e miniaturas
@@ -215,15 +216,21 @@ packshot com logo centralizado perde as pontas da marca; `pad` preserva o quadro
 
 ## Provedores de vídeo
 
-| | Gemini Omni 1.1 Flash | Sora-2 (Microsoft Foundry) |
-|---|---|---|
-| `VF_PROVIDER` | `gemini` | `azure` |
-| Credencial | `GEMINI_API_KEY` | `AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_API_KEY` |
-| Extensão de cena | sim, via `previous_interaction_id` | não — encadeia por **keyframe** |
-| Resoluções | 360p → 4K | 1280x720 / 720x1280 |
-| Durações | livres | 4, 8 ou 12s (arredonda para a mais próxima) |
-| Referência de vídeo | até 3, ≤ 3s cada | imagem (`input_reference`) |
-| Edição generativa | tasks `edit` / `extend` | *remix* de um vídeo gerado |
+| | Gemini Omni 1.1 Flash | Sora-2 (Microsoft Foundry) | Higgsfield Wan 2.6 + Hailuo 2.3 Standard |
+|---|---|---|---|
+| `VF_PROVIDER` | `gemini` | `azure` | `higgsfield` |
+| Credencial | `GEMINI_API_KEY` | `AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_API_KEY` | `HF_API_KEY_ID` + `HF_API_KEY_SECRET` |
+| Extensão de cena | sim, via `previous_interaction_id` | não — encadeia por **keyframe** | não — encadeia por **keyframe** |
+| Resoluções | 360p → 4K | 1280x720 / 720x1280 | Wan: 720p / 1080p; Hailuo: 768P fixo |
+| Durações | livres | 4, 8 ou 12s (arredonda para a mais próxima) | Wan: 5, 10 ou 15s; Hailuo: 6 ou 10s |
+| Referência | imagem e vídeo | imagem (`input_reference`) | uma imagem; upload via URL pré-assinada |
+| Edição generativa | tasks `edit` / `extend` | *remix* de um vídeo gerado | não implementada neste adapter |
+
+O provider Higgsfield usa `wan/v2.6/text-to-video` para a primeira peça e
+`minimax/hailuo-2.3/standard/image-to-video` para as seguintes. O pipeline trabalha em peças de 10s,
+duração aceita por ambos. O Hailuo gera em 768P fixo; o app limita esse provider a 16:9 e usa 720p
+como alvo comum. As credenciais ficam no servidor; o upload da imagem usa uma URL pré-assinada sem
+encaminhar o header de autorização ao storage. Segredos não são devolvidos pela API de configuração.
 
 Chamada ao Omni, em resumo:
 
@@ -311,6 +318,7 @@ app/
     base.py          contrato VideoRequest / VideoResult e capacidades
     gemini.py        client.interactions.create + polling até `completed`
     azure_sora.py    Sora-2 no Foundry: criar job, consultar, baixar, listar, apagar
+    higgsfield.py    Wan/Hailuo: upload pré-assinado, request assíncrono e download do vídeo
     mock.py          clipe sintético (MP4 com FFmpeg, senão SVG) para rodar offline
   main.py            API HTTP + entrega da interface
 web/                 interface (HTML + CSS + JS, sem build)
@@ -335,7 +343,10 @@ entre primeiro e último frame, referências, extensão e upscale 1080p/4K) e o 
 |---|---|---|
 | `GEMINI_API_KEY` | — | chave da Gemini API |
 | `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_KEY` | — | recurso do Foundry com o sora-2 |
-| `VF_PROVIDER` | `auto` | `gemini`, `azure`, `mock` ou `auto` |
+| `HF_API_KEY_ID` / `HF_API_KEY_SECRET` | — | credenciais server-side da Higgsfield API |
+| `VF_HIGGSFIELD_TEXT_MODEL` | `wan/v2.6/text-to-video` | endpoint Wan 2.6 texto→vídeo |
+| `VF_HIGGSFIELD_IMAGE_MODEL` | `minimax/hailuo-2.3/standard/image-to-video` | endpoint Hailuo imagem→vídeo |
+| `VF_PROVIDER` | `auto` | `gemini`, `azure`, `higgsfield`, `mock` ou `auto` |
 | `VF_MODEL` | `gemini-omni-1.1-flash` | modelo de vídeo |
 | `VF_TEXT_MODEL` | `gemini-flash-latest` | modelo de texto do roteiro/storyboard |
 | `VF_AZURE_DEPLOYMENT` | `sora-2` | nome do deployment no Foundry |
