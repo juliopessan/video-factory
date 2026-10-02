@@ -203,8 +203,7 @@ class HiggsfieldProvider:
         return public_url
 
     def _await_completion(self, client: httpx.Client, submitted: dict) -> dict:
-        status_url = str(submitted.get("status_url") or "")
-        status_url = self._validated_status_url(str(submitted.get("status_url") or ""))
+        status_url = self._status_url_for(submitted)
         status = str(submitted.get("status") or "queued").lower()
         result = submitted
         deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
@@ -229,6 +228,30 @@ class HiggsfieldProvider:
             suffix = f": {str(detail)[:240]}" if detail else "."
             raise ProviderError(f"Higgsfield terminou com status '{status}'{suffix}")
         return result
+
+    @classmethod
+    def _status_url_for(cls, submitted: dict) -> str:
+        """URL de status do job: a que a API devolveu, se for do host oficial;
+        senão a canônica `/requests/{request_id}/status`.
+
+        A resposta de envio nem sempre traz `status_url` no formato esperado (ou
+        traz outro host). Seguir um host qualquer seria um risco, então só o
+        host oficial vale; o `request_id` basta para montar o endereço."""
+        value = str(submitted.get("status_url") or "")
+        if value:
+            try:
+                return cls._validated_status_url(value)
+            except ProviderError:
+                pass
+        request_id = str(submitted.get("request_id") or submitted.get("id") or "").strip()
+        if re.fullmatch(r"[A-Za-z0-9._-]{6,128}", request_id):
+            return f"{API_ROOT}/requests/{request_id}/status"
+        # sem URL válida e sem id: mostra só os NOMES dos campos recebidos (nunca os valores)
+        fields = ", ".join(sorted(str(k) for k in submitted)[:12]) or "nenhum"
+        raise ProviderError(
+            "Resposta do Higgsfield sem status_url nem request_id utilizáveis "
+            f"(campos recebidos: {fields})."
+        )
 
     @staticmethod
     def _validated_status_url(value: str) -> str:
