@@ -1,0 +1,4 @@
+-r requirements.txt
+faster-whisper>=1.0
+# faster-whisper 1.2.x ainda chama av.open(metadata_errors=...), parametro removido no av 16+
+av>=13,<16
