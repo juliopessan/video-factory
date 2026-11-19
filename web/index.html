@@ -72,6 +72,7 @@
   <section class="step" id="step-1">
     <div class="step-head"><span class="num">01</span><h3>Contexto</h3><p>O que o filme precisa dizer, para quem e com que cara.</p></div>
     <form class="grid-form" id="context-form">
+      <label class="field wide"><span>Título do vídeo</span><input name="title" placeholder="Vídeo 1 | Como a IA e o Copilot funcionam" /></label>
       <label class="field"><span>Marca</span><input name="brand" placeholder="Contoso" /></label>
       <label class="field"><span>Produto ou serviço *</span><input name="product" placeholder="fábrica de migração para Azure" required /></label>
       <label class="field"><span>Público</span><input name="audience" placeholder="CIOs de grandes empresas" /></label>
@@ -79,6 +80,7 @@
       <label class="field wide"><span>Ponto de virada (Ato 3)</span><input name="turning_point" placeholder="mapeamento determinístico antes de construir" /></label>
       <label class="field wide"><span>Valor de negócio (Ato 4) *</span><input name="value" placeholder="governança ponta a ponta, custo exato, plataforma para IA" required /></label>
       <label class="field wide"><span>Call to action (Ato 5)</span><input name="cta" placeholder="Vamos migrar." /></label>
+      <label class="field full"><span>Fonte de referência (slides, documento)</span><input name="source_reference" placeholder="Slides 3 a 10" /></label>
       <label class="field full"><span>Elenco e figurino (inglês)</span><textarea name="characters" rows="2" placeholder="Four diverse senior architects, navy suit with ember-orange pocket square…"></textarea></label>
       <label class="field full"><span>Estética base (inglês)</span><textarea name="aesthetic" rows="2" placeholder="Premium photorealistic footage, ARRI Alexa 35 texture…"></textarea></label>
       <label class="field full"><span>Referência ativa — o que preservar (inglês)</span><textarea name="reference_note" rows="2" placeholder="Preserve the glowing isometric node, its proportions and the exact blue palette."></textarea></label>
@@ -120,6 +122,7 @@
     <div class="empty-slot" id="board-empty">O storyboard aparece assim que o roteiro estiver pronto.</div>
     <div id="board-body" hidden>
       <div class="board-meta" id="board-meta"></div>
+      <div class="vo-warning" id="vo-warning" role="alert" hidden></div>
       <div class="segments" id="segments"></div>
       <div class="form-foot">
         <p class="note" id="board-note"></p>

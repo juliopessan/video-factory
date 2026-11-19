@@ -33,8 +33,11 @@ PENDING = {"queued", "in_progress", "preprocessing", "running", "processing"}
 
 
 def nearest_seconds(seconds: int) -> int:
-    """Sora-2 só gera 4, 8 ou 12 segundos: escolhe o mais próximo."""
-    return min(ALLOWED_SECONDS, key=lambda option: (abs(option - seconds), option))
+    """Sora-2 só gera 4, 8 ou 12 segundos: escolhe o mais próximo.
+
+    No empate (6 e 10) sobe: a locução foi escrita para a janela pedida, e um
+    clipe mais curto cortaria a fala; um mais longo só deixa folga no fim."""
+    return min(ALLOWED_SECONDS, key=lambda option: (abs(option - seconds), -option))
 
 
 class AzureSoraProvider:

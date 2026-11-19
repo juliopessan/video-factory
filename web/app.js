@@ -3,6 +3,8 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+const FIT_ICON = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="14.5" r="2.2"/><circle cx="5" cy="5.5" r="2.2"/><path d="M6.9 6.6 17 13M6.9 13.4 17 7"/></svg>';
+
 const state = {
   config: null,
   projectId: null,
@@ -473,13 +475,17 @@ function renderBoard() {
           <span class="mode">${escapeHtml(segment.mode || "")}</span>
           <span class="mode">${segment.duration_seconds}s</span>
           <span class="grow"></span>
+          <span class="pill vo-over" data-vo-badge hidden></span>
+          <button type="button" class="icon-btn" data-fit="${index}" hidden
+            title="Sugerir uma versão que cabe na peça" aria-label="Sugerir uma versão da locução que cabe na peça">${FIT_ICON}<span>Ajustar</span></button>
           <span class="pill">atos ${(segment.acts || []).join(", ")}</span>
           <span class="pill beat-pill">${(segment.script_beats || []).join(" → ")}</span>
         </header>
         <div class="body">
           <div class="col">
             <div><span class="label" style="font:10px/1 var(--mono);letter-spacing:.14em;color:var(--ink-40);text-transform:uppercase">${voLabel}</span>
-              <textarea rows="3" data-field="vo">${escapeHtml(segment.vo || "")}</textarea></div>
+              <textarea rows="3" data-field="vo">${escapeHtml(segment.vo || "")}</textarea>
+              <div class="vo-fit" data-fit-panel hidden></div></div>
             <div><span class="label" style="font:10px/1 var(--mono);letter-spacing:.14em;color:var(--ink-40);text-transform:uppercase">Primeiro frame (EN)</span>
               <textarea rows="3" data-field="first_frame">${escapeHtml(segment.first_frame || "")}</textarea></div>
             <div><span class="label" style="font:10px/1 var(--mono);letter-spacing:.14em;color:var(--ink-40);text-transform:uppercase">Ação e câmera (EN)</span>
@@ -508,9 +514,87 @@ function renderBoard() {
       </article>`
     )
     .join("");
+  updateVoWarning();
   $("#board-note").textContent = `${board.segments.length} peças de ${state.config.segment_seconds}s · ${
     board.segments.length * state.config.segment_seconds
   }s no total`;
+}
+
+/* Advertência de locução longa: recalculada a cada edição, a partir do texto que
+   está na tela. A fala nunca é cortada; só avisamos que não cabe na janela. */
+function updateVoWarning() {
+  const limit = state.config.vo_limit_words;
+  const seconds = state.config.segment_seconds;
+  const over = [];
+  $$("#segments .segment").forEach((node) => {
+    const words = ($('textarea[data-field="vo"]', node).value.trim().match(/\S+/g) || []).length;
+    const badge = $("[data-vo-badge]", node);
+    const tooLong = words > limit;
+    badge.hidden = !tooLong;
+    $("[data-fit]", node).hidden = !tooLong;
+    badge.textContent = tooLong ? `${words} palavras · máx. ${limit}` : "";
+    if (tooLong) over.push({ piece: Number(node.dataset.index) + 1, words });
+  });
+  const box = $("#vo-warning");
+  box.hidden = !over.length;
+  if (!over.length) return;
+  const list = over.map((o) => `<li>Peça ${o.piece}: <b>${o.words} palavras</b> (cabem cerca de ${limit})</li>`).join("");
+  box.innerHTML = `<span class="bang">!</span><div>
+    <b>Advertência: a locução não cabe em ${seconds} s.</b> Ao falar tudo isso, o modelo acelera a fala ou
+    corta a frase no meio. Seu texto não foi alterado.
+    <ul>${list}</ul>
+    <div style="margin-top:10px"><button type="button" class="icon-btn solid" data-fit-all>${FIT_ICON}<span>Sugerir ajuste para todas</span></button></div>
+    <div style="margin-top:8px">Ou resolva por conta própria: encurte o texto do problema, da virada ou do valor de negócio,
+    ou aumente a duração do filme (até ${state.config.max_cumulative_seconds} s) para espalhar a fala em mais peças.</div>
+  </div>`;
+}
+
+/* ------------------------------------------------ ajuste da locução por ícone */
+
+async function suggestFit(node) {
+  const index = Number(node.dataset.index);
+  const panel = $("[data-fit-panel]", node);
+  const area = $('textarea[data-field="vo"]', node);
+  panel.hidden = false;
+  panel.innerHTML = '<span class="fit-wait">Preparando uma versão que cabe…</span>';
+  try {
+    const fit = await api.post(`/api/pipelines/${state.pipeline.id}/fit-voiceover`, {
+      segment_index: index + 1,
+      text: area.value,
+    });
+    if (fit.source === "none") {
+      panel.hidden = true;
+      return;
+    }
+    const origin =
+      fit.source === "model"
+        ? "Condensado pelo modelo, sem acrescentar fatos."
+        : "Sugestão automática simples (sem modelo): confira se o sentido ficou.";
+    panel.innerHTML = `
+      <div class="fit-head"><b>Sugestão</b><span>${fit.words_before} → ${fit.words_after} palavras · limite ${fit.limit}</span></div>
+      <textarea rows="3" data-fit-text>${escapeHtml(fit.suggestion)}</textarea>
+      <p class="fit-origin">${origin}</p>
+      <div class="fit-actions">
+        <button type="button" class="btn-mini btn-accept-safe" data-fit-apply>Aplicar</button>
+        <button type="button" class="btn-mini" data-fit-discard>Descartar</button>
+      </div>`;
+  } catch (err) {
+    panel.innerHTML = `<span class="error">${escapeHtml(err.message)}</span>`;
+  }
+}
+
+async function applyFit(node) {
+  const panel = $("[data-fit-panel]", node);
+  const area = $('textarea[data-field="vo"]', node);
+  area.value = $("[data-fit-text]", panel).value.trim();
+  panel.hidden = true;
+  panel.innerHTML = "";
+  updateVoWarning();
+  // grava e recompila o prompt desta peça sem redesenhar a tela (outras sugestões abertas continuam)
+  await api.patch(`/api/pipelines/${state.pipeline.id}`, { storyboard: collectBoard() });
+  state.pipeline = await api.get(`/api/pipelines/${state.pipeline.id}`);
+  const index = Number(node.dataset.index);
+  $(".prompt-block", node).innerHTML = highlightPrompt(state.pipeline.storyboard.segments[index].prompt || "");
 }
 
 function highlightPrompt(prompt) {
@@ -962,7 +1046,25 @@ function bindEvents() {
     renderPipeline();
   });
   $("#board-next").addEventListener("click", () => $("#step-4").scrollIntoView({ behavior: "smooth" }));
+  $("#vo-warning").addEventListener("click", (event) => {
+    if (!event.target.closest("[data-fit-all]")) return;
+    $$("#segments .segment").forEach((node) => {
+      if (!$("[data-fit]", node).hidden) suggestFit(node);
+    });
+  });
+  $("#segments").addEventListener("input", (event) => {
+    if (event.target.matches('textarea[data-field="vo"]')) updateVoWarning();
+  });
   $("#segments").addEventListener("click", async (event) => {
+    const fitButton = event.target.closest("[data-fit]");
+    if (fitButton) return suggestFit(fitButton.closest(".segment"));
+    if (event.target.closest("[data-fit-apply]")) return applyFit(event.target.closest(".segment"));
+    if (event.target.closest("[data-fit-discard]")) {
+      const panel = $("[data-fit-panel]", event.target.closest(".segment"));
+      panel.hidden = true;
+      panel.innerHTML = "";
+      return;
+    }
     const copyIndex = event.target.dataset.copy;
     if (copyIndex !== undefined) {
       navigator.clipboard?.writeText(state.pipeline.storyboard.segments[Number(copyIndex)].prompt || "");

@@ -29,6 +29,7 @@ app = FastAPI(title="Video Factory", version="1.0.0")
 @app.on_event("startup")
 def _startup() -> None:
     db.init_db()
+    studio.recover_interrupted()
 
 
 # --------------------------------------------------------------------------- schemas
@@ -56,6 +57,8 @@ class GenerationIn(BaseModel):
 
 
 class PipelineIn(BaseModel):
+    title: str = ""
+    source_reference: str = ""
     brand: str = ""
     product: str = ""
     audience: str = ""
@@ -80,6 +83,7 @@ class PipelineUpdateIn(BaseModel):
 
 class PipelineRenderIn(BaseModel):
     resolution: str | None = None
+    force: bool = False
 
 
 class SegmentActionIn(BaseModel):
@@ -87,6 +91,11 @@ class SegmentActionIn(BaseModel):
     auto_apply: bool = False
     retry_render: bool = True
     resolution: str | None = None
+
+
+class FitVoiceoverIn(BaseModel):
+    segment_index: int = 1
+    text: str | None = None  # locução atual na tela, ainda não salva
 
 
 class ExportIn(BaseModel):
@@ -155,6 +164,7 @@ def read_config() -> dict:
         "resolutions": capabilities.get("resolutions") or list(RESOLUTIONS),
         "aspect_ratios": capabilities.get("aspect_ratios") or list(ASPECT_RATIOS),
         "clip_seconds": CLIP_SECONDS,
+        "vo_limit_words": int(pipeline_mod.SEGMENT_SECONDS * pipeline_mod.VO_WORDS_PER_SECOND),
         "extension_seconds": EXTENSION_SECONDS,
         "max_cumulative_seconds": MAX_CUMULATIVE_SECONDS,
         "max_reference_videos": MAX_REFERENCE_VIDEOS,
@@ -270,13 +280,29 @@ def post_pipeline_prompts(pipeline_id: str) -> dict:
 
 @app.post("/api/pipelines/{pipeline_id}/render", status_code=202)
 def post_pipeline_render(pipeline_id: str, payload: PipelineRenderIn) -> dict:
-    return _guard(pipeline_mod.render, pipeline_id, payload.resolution)
+    return _guard(pipeline_mod.render, pipeline_id, payload.resolution, payload.force)
 
 
 @app.post("/api/pipelines/{pipeline_id}/rephrase-segment")
 def post_rephrase_segment(pipeline_id: str, payload: SegmentActionIn) -> dict:
     return _guard(
         pipeline_mod.rephrase_segment, pipeline_id, payload.segment_index, payload.auto_apply
+    )
+
+
+@app.post("/api/pipelines/{pipeline_id}/fit-voiceover")
+def post_fit_voiceover(pipeline_id: str, payload: FitVoiceoverIn) -> dict:
+    """Propõe uma locução que cabe na peça. Não grava nada: o usuário decide."""
+    from . import voice_fit
+
+    pipeline = _guard(pipeline_mod.get_pipeline, pipeline_id)
+    segments = (pipeline["storyboard"] or {}).get("segments") or []
+    if not 1 <= payload.segment_index <= len(segments):
+        raise HTTPException(status_code=404, detail=f"Peça {payload.segment_index} não existe.")
+    text = payload.text if payload.text is not None else segments[payload.segment_index - 1].get("vo", "")
+    limit = int(pipeline_mod.SEGMENT_SECONDS * pipeline_mod.VO_WORDS_PER_SECOND)
+    return voice_fit.fit_voiceover(
+        text, limit, pipeline["context"].get("voiceover_language") or "pt-BR", pipeline["context"]
     )
 
 
@@ -341,6 +367,7 @@ def get_subtitles(pipeline_id: str):
         pipeline["storyboard"].get("segments") or [],
         pipeline_mod.SEGMENT_SECONDS,
         postproduction.LINE_CHARS_BY_FORMAT["16:9"],
+        durations=postproduction.piece_durations(pipeline),
     )
     return Response(content=srt, media_type="text/plain; charset=utf-8")
 

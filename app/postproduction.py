@@ -134,7 +134,12 @@ def _split_cues(text: str, line_chars: int = MAX_LINE_CHARS) -> list[str]:
     return ["\n".join(lines[i : i + MAX_CUE_LINES]) for i in range(0, len(lines), MAX_CUE_LINES)]
 
 
-def build_srt(segments: list[dict], segment_seconds: int, line_chars: int = MAX_LINE_CHARS) -> str:
+def build_srt(
+    segments: list[dict],
+    segment_seconds: int,
+    line_chars: int = MAX_LINE_CHARS,
+    durations: list[float] | None = None,
+) -> str:
     """Legendas a partir da locução do storyboard.
 
     A locução já vem escrita e cronometrada, então não há transcrição: as marcas
@@ -146,13 +151,22 @@ def build_srt(segments: list[dict], segment_seconds: int, line_chars: int = MAX_
     float deixava para trás.
     """
     cues: list[str] = []
-    janela_ticks = segment_seconds * TICKS_PER_SECOND
+    # `durations`: segundos reais de cada peça, quando o provider não devolve os
+    # 10s do plano (Sora-2 só gera 4/8/12). Sem isso as legendas derivam peça a peça.
+    janelas = [
+        round(durations[i] * TICKS_PER_SECOND)
+        if durations and i < len(durations) and durations[i]
+        else segment_seconds * TICKS_PER_SECOND
+        for i in range(len(segments))
+    ]
+    inicios = [sum(janelas[:i]) for i in range(len(segments))]
     for index, segment in enumerate(segments):
         text = " ".join((segment.get("vo") or "").split())
         if not text:
             continue
         blocks = _split_cues(text, line_chars)
-        inicio = index * janela_ticks
+        janela_ticks = janelas[index]
+        inicio = inicios[index]
         fim = inicio + janela_ticks - CUE_GAP_TICKS
         disponivel = fim - inicio
 
@@ -172,6 +186,22 @@ def build_srt(segments: list[dict], segment_seconds: int, line_chars: int = MAX_
     return "\n".join(cues)
 
 
+def piece_durations(pipeline: dict) -> list[float] | None:
+    """Duração real de cada peça quando elas são independentes (keyframe).
+
+    Com `extend`, cada peça traz o filme acumulado e o plano de 10s por peça vale.
+    Encadeado por keyframe o filme é a emenda das peças, e cada uma tem o tamanho
+    que o provider entregou: mede os arquivos em vez de supor.
+    """
+    if pipeline.get("chaining") != "keyframe":
+        return None
+    completed = [r for r in pipeline.get("renders") or [] if r["status"] == "completed" and r.get("asset_path")]
+    if not completed or not available():
+        return None
+    measured = [probe_duration(r["asset_path"]) for r in completed]
+    return measured if all(measured) else None
+
+
 # ------------------------------------------------------------------- comandos
 
 
@@ -184,6 +214,30 @@ def probe_duration(path: str | Path) -> float | None:
     )
     try:
         return float(result.stdout.strip())
+    except ValueError:
+        return None
+
+
+def probe_has_audio(path: str | Path) -> bool:
+    _require_ffmpeg()
+    result = subprocess.run(
+        [FFPROBE, "-v", "error", "-select_streams", "a", "-show_entries", "stream=index",
+         "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True, timeout=60,
+    )
+    return bool(result.stdout.strip())
+
+
+def probe_resolution(path: str | Path) -> tuple[int, int] | None:
+    _require_ffmpeg()
+    result = subprocess.run(
+        [FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+         "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True, timeout=60,
+    )
+    try:
+        width, height = result.stdout.strip().split(",")
+        return int(width), int(height)
     except ValueError:
         return None
 
@@ -313,7 +367,20 @@ def extract_poster(video: str | Path, destination: str | Path, at_fraction: floa
 
 
 def concat(sources: list[str | Path], destination: str | Path) -> Path:
-    """Emenda as peças em um arquivo só, re-encodando para uniformizar."""
+    """Emenda as peças em um arquivo só, re-encodando para uniformizar.
+
+    Nem toda peça tem faixa de áudio (ex.: image_to_video do Hailuo/Higgsfield
+    sai muda). O filtro `concat` com `a=1` exige `[i:a:0]` em TODA entrada —
+    sem isso o FFmpeg recusa o filtergraph ("Stream specifier ':a:0' ...
+    matches no streams"). Para cada peça muda, gera um `anullsrc` do tamanho
+    exato dela e usa isso como a faixa de áudio daquele trecho.
+
+    As peças também podem vir em resoluções diferentes entre si — o Hailuo
+    2.3 Standard renderiza em 1364x768 enquanto o Wan 2.6 720p sai em
+    1920x1080 — e o `concat` exige que os links de vídeo combinem exatamente.
+    Por isso cada peça é escalada/padded (sem recortar) até o maior canvas
+    observado entre todas antes de entrar no concat.
+    """
     _require_ffmpeg()
     if not sources:
         raise studio.StudioError("Nada para emendar.")
@@ -321,10 +388,37 @@ def concat(sources: list[str | Path], destination: str | Path) -> Path:
     inputs: list[str] = []
     for source in sources:
         inputs += ["-i", str(source)]
-    streams = "".join(f"[{i}:v:0][{i}:a:0]" for i in range(len(sources)))
+
+    resolutions = [probe_resolution(source) or (1920, 1080) for source in sources]
+    target_w = max(w for w, _ in resolutions)
+    target_h = max(h for _, h in resolutions)
+    target_w += target_w % 2
+    target_h += target_h % 2
+
+    silence_inputs: list[str] = []
+    audio_ref: dict[int, int] = {}
+    next_input_index = len(sources)
+    for i, source in enumerate(sources):
+        if not probe_has_audio(source):
+            duration = probe_duration(source) or 0.0
+            silence_inputs += [
+                "-f", "lavfi", "-i",
+                f"anullsrc=channel_layout=stereo:sample_rate=48000:d={duration:.3f}",
+            ]
+            audio_ref[i] = next_input_index
+            next_input_index += 1
+
+    video_filters = ";".join(
+        f"[{i}:v:0]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,"
+        f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2,setsar=1[v{i}]"
+        for i in range(len(sources))
+    )
+    streams = "".join(
+        f"[v{i}][{audio_ref.get(i, i)}:a:0]" for i in range(len(sources))
+    )
     command = [
-        FFMPEG, "-y", "-loglevel", "error", *inputs,
-        "-filter_complex", f"{streams}concat=n={len(sources)}:v=1:a=1[v][a]",
+        FFMPEG, "-y", "-loglevel", "error", *inputs, *silence_inputs,
+        "-filter_complex", f"{video_filters};{streams}concat=n={len(sources)}:v=1:a=1[v][a]",
         "-map", "[v]", "-map", "[a]",
         "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(destination),
@@ -465,7 +559,7 @@ def create_exports(
     # o .srt é sempre escrito: serve para o modo soft, para o burn e para download
     subtitle_paths: dict[int, Path] = {}
     for line_chars in {LINE_CHARS_BY_FORMAT.get(label, MAX_LINE_CHARS) for label in formats}:
-        srt = build_srt(segments, pipeline_mod.SEGMENT_SECONDS, line_chars)
+        srt = build_srt(segments, pipeline_mod.SEGMENT_SECONDS, line_chars, durations=piece_durations(pipeline))
         if not srt:
             continue
         path = _exports_dir() / f"{pipeline_id}.{line_chars}.srt"

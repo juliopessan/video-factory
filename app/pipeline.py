@@ -24,12 +24,12 @@ SEGMENT_SECONDS = EXTENSION_SECONDS  # 10s por peca, como no modelo de referenci
 SCRIPT_BEATS = ("intro", "hook", "meat", "cta")
 
 BEAT_BRIEF = {
-    "intro": "Situe em uma frase: quem fala, sobre o quê e onde. Sem preâmbulo, sem saudação.",
-    "hook": "Crie a tensão que segura o espectador: o risco de continuar como está, dito de "
-            "forma concreta. É a frase que faz a pessoa não pular o vídeo.",
-    "meat": "Entregue a substância: o custo real do jeito atual, a mudança de abordagem e o "
-            "valor que ela produz. Concreto, sem adjetivo vazio.",
-    "cta": "Feche com uma ação clara e curta. Uma frase, no imperativo ou no convite direto.",
+    "intro": "State in one sentence who is speaking, about what and where. No preamble, no greeting.",
+    "hook": "Create the tension that holds the viewer: the concrete risk of staying as-is. "
+            "This is the line that stops people from skipping the video.",
+    "meat": "Deliver the substance: the real cost of the current way, the change of approach and "
+            "the value it produces. Concrete, no empty adjectives.",
+    "cta": "Close with one clear, short action. A single sentence, imperative or a direct invitation.",
 }
 
 # (nome do ato, o que ele carrega, beat do script)
@@ -57,6 +57,10 @@ NO_ONSCREEN_TEXT = (
     "burned-in titles. Text may appear only when it belongs to the scene itself: signage, "
     "screen interfaces, printed material, product branding."
 )
+
+# Locução cabe em ~2,5 palavras por segundo: acima disso a fala atropela a peça
+# (ou o modelo corta a frase no meio).
+VO_WORDS_PER_SECOND = 2.5
 
 DEFAULT_AESTHETIC = (
     "Premium photorealistic footage, ARRI Alexa 35 texture, high-end corporate "
@@ -235,6 +239,8 @@ def normalize_context(raw: dict) -> dict:
     if lang not in ("pt-BR", "en-US"):
         lang = "pt-BR"
     return {
+        "title": (raw.get("title") or "").strip(),
+        "source_reference": (raw.get("source_reference") or "").strip(),
         "brand": (raw.get("brand") or "").strip(),
         "product": (raw.get("product") or "").strip(),
         "audience": (raw.get("audience") or "").strip(),
@@ -304,59 +310,62 @@ def build_story(context: dict) -> dict:
     return story
 
 
+def _sentence(text: str) -> str:
+    """Frase limpa a partir de um campo livre: sem espaços sobrando e com um único
+    ponto final (o usuário pode ter digitado com ou sem pontuação)."""
+    text = " ".join((text or "").split()).rstrip(" .;:,!?…")
+    return f"{text[:1].upper()}{text[1:]}." if text else ""
+
+
 def _fallback_story(context: dict) -> dict:
+    """Roteiro do template local: cada ato diz o que o usuário escreveu para ele,
+    sem completar com frases genéricas que ele não pediu."""
     total = context["duration_seconds"]
     weights = [0.17, 0.23, 0.20, 0.23, 0.17]
     lang = context.get("voiceover_language") or "pt-BR"
     produto = context["product"]
+    brand = context["brand"]
 
     if lang == "en-US":
-        brand = context["brand"] or "the company"
-        problem = context["problem"] or "our own foundational complexity"
-        turning = context["turning_point"] or "mapping everything deterministically before building"
-        publico = context["audience"] or "decision makers"
+        who = f"{brand} presents {produto}" if brand else f"Introducing {produto}"
+        intro = f"{who}, for {context['audience']}." if context["audience"] else f"{who}."
         lines = [
-            f"{brand} builds {produto} for {publico}. "
-            f"And right now, the biggest barrier to growth isn't the market: it's {problem}.",
-            "Solving this manually consumes months — and decisions based on assumptions blow timelines and budgets.",
-            f"So we changed the approach: {turning}.",
-            f"The result? {context['value']}.",
-            context["cta"] or "It's not just a technical change. It's market velocity. Let's begin.",
+            intro,
+            _sentence(context["problem"]) or "Here is the challenge in front of us.",
+            _sentence(context["turning_point"]) or "Then the approach changes.",
+            _sentence(context["value"]),
+            _sentence(context["cta"]) or "Let's begin.",
         ]
         direction_notes = {
             "music": "Tense and dense bass in Acts 1 and 2; the track opens clean and inspiring in Act 3 and "
                      "culminates in an activation chime in Act 5.",
             "pacing": "Energetic rhythm with motivated cuts; only the final packshot holds longer.",
         }
-        logline = f"A {total}s film about {context['product']} for {context['audience'] or 'business decision makers'}."
+        logline = f"A {total}s film about {produto} for {context['audience'] or 'business decision makers'}."
     else:
-        brand = context["brand"] or "a companhia"
-        problem = context["problem"] or "a nossa própria fundação"
-        turning = context["turning_point"] or "mapeamos tudo de forma determinística antes de construir"
-        publico = context["audience"] or "quem decide"
+        who = f"{brand} apresenta {produto}" if brand else f"Apresentamos {produto}"
+        intro = f"{who}, para {context['audience']}." if context["audience"] else f"{who}."
         lines = [
-            # Ato 1 = intro + hook, nessa ordem
-            f"{brand} constrói {produto} para {publico}. "
-            f"E, neste exato momento, a maior barreira para o crescimento não é o mercado: é {problem}.",
-            "Resolver isso do jeito manual consome meses — e decisões baseadas em suposição estouram prazo e orçamento.",
-            f"Então mudamos a abordagem: {turning}.",
-            f"O resultado? {context['value']}.",
-            context["cta"] or "Não é apenas uma mudança técnica. É velocidade de mercado. Vamos começar.",
+            intro,
+            _sentence(context["problem"]) or "Este é o desafio à nossa frente.",
+            _sentence(context["turning_point"]) or "Então a abordagem muda.",
+            _sentence(context["value"]),
+            _sentence(context["cta"]) or "Vamos começar.",
         ]
         direction_notes = {
             "music": "Baixo tenso e denso nos Atos 1 e 2; a trilha abre limpa e inspiradora no Ato 3 e "
                      "culmina em um chime de ativação no Ato 5.",
             "pacing": "Ritmo energético com cortes motivados; apenas o packshot final segura mais tempo.",
         }
-        logline = f"Um filme de {total}s sobre {context['product']} para {context['audience'] or 'decisores de negócio'}."
+        logline = f"Um filme de {total}s sobre {produto} para {context['audience'] or 'decisores de negócio'}."
 
     shots = [
         "OPENING SHOT — 107° wide rectilinear view, camera 60 cm above a glossy dark glass table. "
         "The hero concept looms large in the immediate foreground while the lead specialist leans "
         "toward the lens from midground and indicates the challenge. Rapid tabletop push-in.",
-        "DYNAMIC PAN CUT — a glowing portal fills the frame and the camera glides forward into the legacy "
-        "environment. 84° classic wide, waist height, stabilized dolly moving backward as the team "
-        "strides toward the lens carrying legacy equipment.",
+        "DYNAMIC PAN CUT — a glowing portal fills the frame and the camera glides forward into the "
+        "challenge environment. 84° classic wide, waist height, stabilized dolly moving backward as the team "
+        "strides toward the lens, still working the old way.",
         "MATCH CUT to OVERHEAD SHOT — perfect top-down view of the team in a clean radial composition "
         "around a giant circular glowing table, passing work packets clockwise. Rapid 18° macro inserts "
         "of the new structure forming with precise rack focus.",
@@ -385,7 +394,7 @@ def _fallback_story(context: dict) -> dict:
         )
         cursor += seconds
     return {
-        "title": f"{brand}: {context['product']}"[:120],
+        "title": (context.get("title") or f"{brand + ': ' if brand else ''}{context['product']}")[:120],
         "logline": logline,
         "aesthetic_base": context["aesthetic"],
         "acts": acts,
@@ -407,7 +416,12 @@ def build_storyboard(context: dict, story: dict) -> dict:
             f"Contexto (JSON):\n{_context_brief(context)}\n\n"
             f"Roteiro em 5 atos (JSON):\n{json.dumps(story, ensure_ascii=False)}\n\n"
             f"Voiceover language is in {lang_instruction}. "
-            f"Monte exatamente {count} segmentos de {SEGMENT_SECONDS} segundos, cobrindo os 5 atos em ordem."
+            f"Monte exatamente {count} segmentos de {SEGMENT_SECONDS} segundos, cobrindo os 5 atos em ordem, "
+            "cada ato em um unico segmento e sem repetir nenhum. "
+            f"A locucao de cada segmento tem no maximo {int(SEGMENT_SECONDS * VO_WORDS_PER_SECOND)} palavras. "
+            "Use o texto do usuario (problema, virada, valor, CTA) como base da fala, sem inventar "
+            "fatos, numeros ou promessas que ele nao escreveu, e mantenha o cenario do contexto "
+            "(elenco, estetica, referencia)."
         )
         try:
             board = textgen.generate_json(_storyboard_system(lang), prompt, STORYBOARD_SCHEMA)
@@ -420,6 +434,14 @@ def build_storyboard(context: dict, story: dict) -> dict:
         board["warning"] = "Sem GEMINI_API_KEY: storyboard montado a partir do template local."
 
     segments = board.get("segments") or []
+    if board.get("source") == "model" and len(segments) != count:
+        returned = len(segments)
+        board = _fallback_storyboard(context, story, count)
+        board["warning"] = (
+            f"O modelo devolveu {returned} peças e o plano pede {count}; "
+            "storyboard montado a partir do template local."
+        )
+        segments = board["segments"]
     acts_by_number = {a.get("n"): a for a in (story.get("acts") or [])}
     for index, segment in enumerate(segments):
         segment["index"] = index + 1
@@ -430,7 +452,20 @@ def build_storyboard(context: dict, story: dict) -> dict:
         segment["duration_seconds"] = SEGMENT_SECONDS
         segment["mode"] = "extend" if index else _first_mode(context)
         segment["prompt"] = render_prompt(context, story, board, segment, index)
+    board["vo_overflow"] = vo_overflow_report(segments)
     return board
+
+
+def vo_overflow_report(segments: list[dict]) -> dict:
+    """Advertência estruturada: peças cuja locução tem mais palavras do que cabe
+    em SEGMENT_SECONDS. A UI mostra o aviso; a fala do usuário nunca é cortada."""
+    limit = int(SEGMENT_SECONDS * VO_WORDS_PER_SECOND)
+    pieces = [
+        {"index": s.get("index", i + 1), "words": len((s.get("vo") or "").split())}
+        for i, s in enumerate(segments)
+        if len((s.get("vo") or "").split()) > limit
+    ]
+    return {"limit_words": limit, "pieces": pieces}
 
 
 def _first_mode(context: dict) -> str:
@@ -453,12 +488,47 @@ def _beats_for(acts: list[dict]) -> list[str]:
     return beats
 
 
+def _partition_acts(acts: list[dict], count: int) -> list[list[dict]]:
+    """Divide os atos, em ordem e sem repetir nenhum, em até `count` grupos
+    contíguos, minimizando a peça com mais palavras de locução."""
+    count = max(1, min(count, len(acts)))
+    words = [len((a.get("vo") or "").split()) for a in acts]
+    n = len(acts)
+    best: dict[tuple[int, int], tuple[int, list[int]]] = {}
+
+    def solve(start: int, parts: int) -> tuple[int, list[int]]:
+        if (start, parts) in best:
+            return best[(start, parts)]
+        if parts == 1:
+            result = (sum(words[start:]), [n])
+        else:
+            result = (10**9, [])
+            for cut in range(start + 1, n - parts + 2):
+                cost, rest = solve(cut, parts - 1)
+                worst = max(sum(words[start:cut]), cost)
+                if worst < result[0]:
+                    result = (worst, [cut, *rest])
+        best[(start, parts)] = result
+        return result
+
+    cuts = solve(0, count)[1]
+    groups, previous = [], 0
+    for cut in cuts:
+        groups.append(acts[previous:cut])
+        previous = cut
+    return groups
+
+
 def _fallback_storyboard(context: dict, story: dict, count: int) -> dict:
     acts = story.get("acts") or []
-    per_segment = max(1, math.ceil(len(acts) / count))
+    groups = _partition_acts(acts, count)
+    # mais peças do que atos: as peças extras repetem o último beat com a mesma
+    # locução vazia, em vez de duplicar a fala do CTA
+    while len(groups) < count:
+        groups.append([])
     segments = []
     for index in range(count):
-        chunk = acts[index * per_segment : (index + 1) * per_segment] or acts[-1:]
+        chunk = groups[index]
         segments.append(
             {
                 "index": index + 1,
@@ -512,17 +582,29 @@ def _fallback_storyboard(context: dict, story: dict, count: int) -> dict:
     }
 
 
+def _reference_block(context: dict) -> str:
+    """ACTIVE REFERENCE só cita `<<<image_1>>>` quando há imagem anexada; só com a
+    nota, ela vale como direção de arte e não aponta para uma imagem que não existe."""
+    note = context["reference_note"].strip()
+    if context["reference_asset_id"]:
+        preserve = note or "Preserve its proportions, palette and identity in every shot."
+        return (
+            "ACTIVE REFERENCE\n<<<image_1>>> is the visual source of truth. "
+            f"{preserve} Keep it recognizable and unchanged across the whole film."
+        )
+    if note:
+        return f"ACTIVE REFERENCE\n{note} Keep this consistent across the whole film."
+    return ""
+
+
 def render_prompt(context: dict, story: dict, board: dict, segment: dict, index: int) -> str:
     """Monta o prompt final da peca no template de producao."""
     blocks: list[str] = []
     if index == 0:
         blocks.append(f"SCENE CONTEXT\n{board.get('scene_context', '')}")
-        if context["reference_asset_id"] or context["reference_note"]:
-            blocks.append(
-                "ACTIVE REFERENCE\n<<<image_1>>> is the visual source of truth. "
-                + (context["reference_note"] or "Preserve its proportions, palette and identity in every shot. ")
-                + "Keep it recognizable and unchanged across the whole film."
-            )
+        reference = _reference_block(context)
+        if reference:
+            blocks.append(reference)
         blocks.append(f"CHARACTERS\n{board.get('characters', '')}")
         blocks.append(f"FIRST FRAME\n{segment.get('first_frame', '')}")
         blocks.append(f"FORMAT MODE\n{board.get('format_mode', '')}")
@@ -531,6 +613,14 @@ def render_prompt(context: dict, story: dict, board: dict, segment: dict, index:
             "CONTINUATION\nContinue the video from the previous shot. "
             + segment.get("continuity", "")
         )
+        # Provider que não estende cena (Sora-2, Kling, Wan) recebe só o último
+        # frame da peça anterior: sem o elenco e a referência por escrito, a
+        # identidade deriva. Em quem estende, repetir é inofensivo.
+        if board.get("characters"):
+            blocks.append(f"CHARACTERS\n{board['characters']}")
+        reference = _reference_block(context)
+        if reference:
+            blocks.append(reference)
 
     blocks.append(NO_ONSCREEN_TEXT)
 
@@ -644,6 +734,7 @@ def update_pipeline(pipeline_id: str, story: dict | None = None, storyboard: dic
                 segment["prompt"] = render_prompt(
                     pipeline["context"], story or pipeline["story"], storyboard, segment, index
                 )
+        storyboard["vo_overflow"] = vo_overflow_report(storyboard.get("segments", []))
         data["storyboard"] = json.dumps(storyboard, ensure_ascii=False)
     if data:
         data["updated_at"] = db.now()
@@ -660,7 +751,7 @@ def regenerate_prompts(pipeline_id: str) -> dict:
     return update_pipeline(pipeline_id, storyboard=board)
 
 
-def render(pipeline_id: str, resolution: str | None = None) -> dict:
+def render(pipeline_id: str, resolution: str | None = None, force: bool = False) -> dict:
     """Passo 4. Valida o plano e dispara a renderizacao sequencial em background."""
     pipeline = get_pipeline(pipeline_id)
     context = pipeline["context"]
@@ -678,10 +769,41 @@ def render(pipeline_id: str, resolution: str | None = None) -> dict:
     if resolution not in RESOLUTIONS:
         raise studio.StudioError(f"Resolucao invalida: {resolution}.")
 
-    db.execute("DELETE FROM pipeline_renders WHERE pipeline_id = ?", [pipeline_id])
+    # um render que falhou no meio retoma de onde parou: as peças já pagas e
+    # intactas ficam. Pipeline concluído, ou `force`, refaz tudo (re-roll).
+    keep = 0 if force or pipeline["status"] != "failed" else _reusable_pieces(pipeline, segments, resolution)
+    db.execute(
+        "DELETE FROM pipeline_renders WHERE pipeline_id = ? AND segment_index > ?", [pipeline_id, keep]
+    )
     db.update("pipelines", pipeline_id, {"status": "rendering", "error": None, "updated_at": db.now()})
-    studio.EXECUTOR.submit(_run_render, pipeline_id, resolution)
-    return {"pipeline_id": pipeline_id, "status": "rendering", "segments": len(segments), "resolution": resolution}
+    studio.EXECUTOR.submit(_run_render, pipeline_id, resolution, keep)
+    return {
+        "pipeline_id": pipeline_id, "status": "rendering", "segments": len(segments),
+        "resolution": resolution, "resumed_from": keep,
+    }
+
+
+def _reusable_pieces(pipeline: dict, segments: list[dict], resolution: str) -> int:
+    """Quantas peças iniciais do último render continuam válidas.
+
+    Vale a peça concluída cujo prompt, resolução e proporção ainda são os do
+    plano; a primeira que divergir (ou falhou) quebra a cadeia, porque as
+    seguintes dependem dela."""
+    context = pipeline["context"]
+    valid = 0
+    for index, render_row in enumerate(pipeline["renders"]):
+        if index >= len(segments) or render_row.get("segment_index") != index + 1:
+            break
+        same = (
+            render_row["status"] == "completed"
+            and render_row.get("prompt") == (segments[index].get("prompt") or "")
+            and render_row.get("resolution") == resolution
+            and render_row.get("aspect_ratio") == context["aspect_ratio"]
+        )
+        if not same:
+            break
+        valid += 1
+    return valid
 
 
 def _keyframe_media(project_id: str, generation_id: str) -> dict:
@@ -717,7 +839,7 @@ def _first_frame_media(project_id: str, asset_id: str | None) -> dict | None:
     return {"asset_id": asset_id, "kind": "image", "role": "first_frame"}
 
 
-def _run_render(pipeline_id: str, resolution: str) -> None:
+def _run_render(pipeline_id: str, resolution: str, keep: int = 0) -> None:
     """Cada peca so entra na fila depois que a anterior termina: a extensao
     precisa do `interaction_id` do clipe anterior."""
     try:
@@ -730,8 +852,13 @@ def _run_render(pipeline_id: str, resolution: str) -> None:
     media = [first_media] if first_media else []
     strategy = chaining_strategy()
     parent_id: str | None = None
+    kept = pipeline["renders"][:keep]
+    if kept:
+        parent_id = kept[-1]["id"]
     try:
         for index, segment in enumerate(segments):
+            if index < keep:
+                continue
             step_media = media if index == 0 else []
             mode = _first_mode(context) if index == 0 else "extend"
             if index and strategy == "keyframe":

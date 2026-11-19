@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipper — fila de revisão</title>
+<style>
+  :root { --bg:#0e0f13; --card:#171922; --line:#2a2d3a; --text:#eceef4; --mute:#8b90a3; --ok:#2ecc71; --no:#e5484d; --accent:#ffd700; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.4 system-ui, sans-serif; }
+  header { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:16px 20px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:2; }
+  h1 { font-size:18px; margin:0 12px 0 0; }
+  select, input, button { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; }
+  button { cursor:pointer; } button:hover { border-color:var(--mute); }
+  button.ok { border-color:var(--ok); } button.ok.on { background:var(--ok); color:#06240f; }
+  button.no { border-color:var(--no); } button.no.on { background:var(--no); color:#fff; }
+  .spacer { flex:1; } .mute { color:var(--mute); font-size:13px; }
+  main { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:16px; padding:20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; }
+  .card.rejected { opacity:.45; } .card.approved { border-color:var(--ok); }
+  video { width:100%; aspect-ratio:9/16; background:#000; display:block; }
+  .body { padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .row { display:flex; gap:8px; align-items:center; } .row > * { flex:1; }
+  .badge { font-size:12px; padding:2px 8px; border-radius:99px; border:1px solid var(--line); flex:none; }
+  .badge.warn { color:var(--accent); border-color:var(--accent); }
+  .trim input { width:70px; flex:none; } .trim button { flex:none; }
+  #msg { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--card); border:1px solid var(--line); padding:10px 16px; border-radius:10px; display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Clipper</h1>
+  <select id="job"></select>
+  <span class="mute" id="summary"></span>
+  <span class="spacer"></span>
+  <button id="export">Exportar aprovados</button>
+</header>
+<main id="grid"></main>
+<div id="msg"></div>
+<script>
+const $ = (s) => document.querySelector(s);
+let job = null;
+
+function toast(text) {
+  const el = $("#msg"); el.textContent = text; el.style.display = "block";
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.style.display = "none", 4500);
+}
+async function api(path, method = "GET", body) {
+  const res = await fetch(path, { method, headers: body ? {"Content-Type": "application/json"} : {}, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || res.statusText);
+  return data;
+}
+async function loadJobs() {
+  const jobs = await api("/api/jobs");
+  const sel = $("#job");
+  sel.innerHTML = jobs.map(j => `<option value="${j.job_id}">${j.source_name} (${j.clips})</option>`).join("");
+  if (jobs.length) { sel.value = (location.hash.slice(1) || jobs[0].job_id); await loadJob(sel.value); }
+  else $("#grid").innerHTML = '<p class="mute">Nenhum job ainda. Rode: python -m clipper run gravacao.mp4</p>';
+}
+async function loadJob(id) {
+  job = await api(`/api/jobs/${id}`); location.hash = id; render();
+}
+function render() {
+  const approved = job.clips.filter(c => c.status === "approved").length;
+  $("#summary").textContent = `${job.clips.length} cortes · ${approved} aprovados · fonte ${(job.duration/60).toFixed(0)} min`;
+  $("#grid").innerHTML = "";
+  for (const c of job.clips) {
+    const card = document.createElement("div"); card.className = `card ${c.status}`;
+    const media = c.error ? `<div class="body"><span class="mute">Erro: ${c.error}</span></div>`
+      : `<video controls preload="none" poster="/media/${job.job_id}/${c.id}.jpg" src="/media/${job.job_id}/${c.id}.mp4"></video>`;
+    card.innerHTML = `${media}
+      <div class="body">
+        <div class="row">
+          <span class="badge">#${c.rank} · nota ${c.score.toFixed(2)}</span>
+          <span class="badge ${c.monetizable ? "" : "warn"}">${c.length}s${c.monetizable ? "" : " · abaixo de 1 min"}</span>
+        </div>
+        <input data-f="title" value="${c.title.replace(/"/g, "&quot;")}">
+        <input data-f="hashtags" value="${c.hashtags}">
+        <div class="row trim">
+          <span class="mute">início</span><input type="number" step="0.5" data-f="start" value="${c.start}">
+          <span class="mute">fim</span><input type="number" step="0.5" data-f="end" value="${c.end}">
+          <button data-act="trim">Refazer</button>
+        </div>
+        <div class="row">
+          <button class="ok ${c.status === "approved" ? "on" : ""}" data-act="approved">Aprovar</button>
+          <button class="no ${c.status === "rejected" ? "on" : ""}" data-act="rejected">Rejeitar</button>
+        </div>
+      </div>`;
+    card.addEventListener("change", async (e) => {
+      const f = e.target.dataset.f; if (!f || f === "start" || f === "end") return;
+      try { Object.assign(c, await api(`/api/jobs/${job.job_id}/clips/${c.id}`, "PATCH", { [f]: e.target.value })); } catch (err) { toast(err.message); }
+    });
+    card.addEventListener("click", async (e) => {
+      const act = e.target.dataset.act; if (!act) return;
+      try {
+        if (act === "trim") {
+          e.target.disabled = true; toast("Renderizando de novo…");
+          const start = parseFloat(card.querySelector('[data-f="start"]').value), end = parseFloat(card.querySelector('[data-f="end"]').value);
+          Object.assign(c, await api(`/api/jobs/${job.job_id}/clips/${c.id}/trim`, "POST", { start, end }));
+          toast("Corte refeito");
+        } else {
+          const next = c.status === act ? "pending" : act;
+          Object.assign(c, await api(`/api/jobs/${job.job_id}/clips/${c.id}`, "PATCH", { status: next }));
+        }
+        render();
+      } catch (err) { toast(err.message); e.target.disabled = false; }
+    });
+    $("#grid").appendChild(card);
+  }
+}
+$("#job").addEventListener("change", (e) => loadJob(e.target.value));
+$("#export").addEventListener("click", async () => {
+  try { const r = await api(`/api/jobs/${job.job_id}/export`, "POST"); toast(`Exportado em ${r.path}`); } catch (err) { toast(err.message); }
+});
+loadJobs().catch((err) => toast(err.message));
+</script>
+</body>
+</html>

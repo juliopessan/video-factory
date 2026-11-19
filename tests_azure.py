@@ -51,11 +51,11 @@ check("manda api-key e bearer", p.headers["api-key"] == "chave-secreta" and p.he
 
 body = p.build_payload(VideoRequest(prompt="Fish swimming", mode="text_to_video", duration_seconds=10))
 check("16:9 vira 1280x720", body["size"] == "1280x720", str(body))
-check("duração cai no valor aceito mais próximo", body["seconds"] == "8", str(body))
+check("duração cai no valor aceito mais próximo (empate sobe)", body["seconds"] == "12", str(body))
 check("model é o nome do deployment", body["model"] == "sora-2", str(body))
 vertical = p.build_payload(VideoRequest(prompt="x", mode="text_to_video", aspect_ratio="9:16"))
 check("9:16 vira 720x1280", vertical["size"] == "720x1280", str(vertical))
-check("durações fora do catálogo são arredondadas", [nearest_seconds(n) for n in (1, 5, 7, 11, 30)] == [4, 4, 8, 12, 12])
+check("durações fora do catálogo são arredondadas", [nearest_seconds(n) for n in (1, 5, 6, 7, 10, 11, 30)] == [4, 4, 8, 8, 12, 12, 12])
 
 try:
     p.build_payload(VideoRequest(prompt="x", mode="text_to_video", aspect_ratio="1:1"))

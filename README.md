@@ -359,6 +359,47 @@ entre primeiro e último frame, referências, extensão e upscale 1080p/4K) e o 
 
 ---
 
+**Kling 3.0 e Wan 3.0 (Higgsfield):** além do Wan 2.6 e do Hailuo 2.3, o provider reconhece as famílias
+`kling-video/v3.0/…` (3–15 s) e `wan/v3.0/…` (2–30 s) pelo caminho configurado em
+`VF_HIGGSFIELD_TEXT_MODEL` / `VF_HIGGSFIELD_IMAGE_MODEL`. O caminho do Kling 3.0 vem da documentação
+pública; o **corpo da requisição dessas famílias é inferido** (prompt, duration, aspect_ratio,
+resolution, image_url) e ainda não foi exercitado contra a API: o primeiro render real confirma.
+Os modelos padrão seguem estritos como antes.
+
+### Render ao vivo no terminal
+
+```bash
+export HF_CREDENTIALS='KEY_ID:KEY_SECRET'    # só no ambiente, nunca em arquivo (ou HF_API_KEY_ID / HF_API_KEY_SECRET)
+python3 live_render.py --provider higgsfield --duration 10
+python3 live_render.py --provider higgsfield --model kling-video/v3.0/std/text-to-video   # Kling 3.0
+```
+
+Roda o pipeline de verdade (contexto → storyboard → render) e mostra cada etapa, a advertência de
+locução e um contador por peça. Mostra o plano e **pede confirmação antes de gastar créditos**
+(`--yes` pula). Sem `--provider` roda no mock, offline. Um render que falha retoma das peças
+concluídas ao ser rodado de novo.
+
+## Aderência do storyboard e robustez do render
+
+- **O template local fala o que você escreveu.** Sem chave de texto, cada ato diz o campo
+  correspondente (problema, virada, valor, CTA), só normalizando espaço e pontuação. Não completa
+  com frases que você não pediu e não tem mais cenas de "legacy" fixas.
+- **Um ato, uma peça.** Os atos são divididos em ordem e sem repetição (antes, o filme de 40s
+  repetia o CTA), balanceando as palavras de locução por peça.
+- **Locução maior que a janela vira aviso.** Cabem ~25 palavras em 10s; acima disso o storyboard
+  traz o aviso com as peças afetadas, em vez de cortar sua fala.
+- **Elenco, estética e referência vão em toda peça.** Quem não estende cena (Sora-2, Kling, Wan)
+  só recebe o último frame da peça anterior, então os blocos `CHARACTERS` e `ACTIVE REFERENCE`
+  repetem nas continuações. `<<<image_1>>>` só aparece quando há imagem anexada.
+- **Título e fonte** (`title`, `source_reference`) são campos do contexto.
+- **Render que falha retoma.** Peças concluídas, com o mesmo prompt, resolução e proporção, não
+  são geradas (nem pagas) de novo; `force: true` refaz tudo.
+- **Reinício do servidor** libera pipelines presos em "rendering".
+- **Legendas seguem a duração real** das peças quando elas são independentes (keyframe).
+- **Sora-2:** a duração de 10s sobe para 12s (antes caía para 8s e cortava a fala).
+
+---
+
 ## Notas honestas
 
 - O custo aparece em **unidades relativas** (360p = 1/3 de 720p), não em dólares: serve para
